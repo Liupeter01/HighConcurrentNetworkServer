@@ -10,23 +10,28 @@
 #include<iostream>
 #include<cassert>
 
-class HelloSocket
+class HelloClient
 {
 public:
-          HelloSocket();
-          virtual ~HelloSocket();
+          HelloClient();
+          virtual ~HelloClient();
 
 public:
-          static SOCKET createServerSocket(
+          static SOCKET createClientSocket(
                     IN int af = AF_INET,
                     IN int type = SOCK_STREAM,
                     IN int protocol = IPPROTO_TCP
           );
+
 public:
+          void connectServer(
+                    IN unsigned long _ipAddr, 
+                    IN unsigned short _ipPort
+          );
           void sendDataToServer(IN const char* _szSendBuf);
           void reciveDataFromServer(
                     OUT char* _szRecvBuf, 
-                    OUT int &_szBufferSize
+                    IN OUT int _szBufferSize
           );
 
 private:
@@ -34,5 +39,5 @@ private:
           WSADATA m_wsadata;
 #endif // _WINDOWS 
           SOCKET m_client_socket;                           //client connection socket
-          sockaddr_in m_client__address;
+          sockaddr_in m_server_address;
 };
