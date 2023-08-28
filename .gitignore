@@ -1,0 +1,11 @@
+﻿################################################################################
+# 此 .gitignore 文件已由 Microsoft(R) Visual Studio 自动创建。
+################################################################################
+
+/.vs/HighConcurrentNetworkServer/FileContentIndex
+/.vs/HighConcurrentNetworkServer/v17
+/bin/x64/Debug
+/HighConcurrentNetworkClient
+/HighConcurrentNetworkServer
+/temp/x64/Debug
+*.sln
