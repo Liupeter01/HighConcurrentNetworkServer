@@ -33,6 +33,7 @@ public:
                     OUT char* _szRecvBuf, 
                     IN OUT int _szBufferSize
           );
+          void clientMainFunction();
 
 private:
 #ifdef _WINDOWS

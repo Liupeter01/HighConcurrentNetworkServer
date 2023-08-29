@@ -95,3 +95,25 @@ void HelloClient::reciveDataFromServer(
                     0
           );
 }
+
+/*------------------------------------------------------------------------------------------------------
+* @function£ºvoid clientMainCFunction
+*------------------------------------------------------------------------------------------------------*/
+void HelloClient::clientMainFunction()
+{
+          while (true) {
+                    char _cmdMessage[256]{ 0 };
+                    std::cin.getline(_cmdMessage, 256);
+                    if (!strcmp(_cmdMessage, "exit")) {
+                              std::cout << "[CLIENT EXIT] Client Exit Manually" << std::endl;
+                              break;
+                    }
+                    else if (strlen(_cmdMessage) != 0) {
+                              this->sendDataToServer(_cmdMessage);
+                    }
+
+                    char str[256]{ 0 };
+                    this->reciveDataFromServer(str, sizeof(str) / sizeof(char));
+                    std::cout << "[SERVER INFO] Message Info :" << str << std::endl;
+          }
+}

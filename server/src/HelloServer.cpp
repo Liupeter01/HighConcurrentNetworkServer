@@ -174,13 +174,14 @@ void HelloServer::sendDataToClient(IN const char* _szSendBuf)
 * @function£ºvoid reciveDataFromClient
 * @param :
                     1. [OUT] char* _szRecvBuf
-                    2. [OUT] int &_szBufferSize
+                    2. [IN] int &_szBufferSize
+* @retvalue: int  
 *------------------------------------------------------------------------------------------------------*/
-void HelloServer::reciveDataFromClient(
+int HelloServer::reciveDataFromClient(
           OUT char* _szRecvBuf,
-          OUT int _szBufferSize)
+          IN int _szBufferSize)
 {
-          ::recv(
+          return  ::recv(
                     this->m_client_connect_socket,
                     _szRecvBuf,
                     _szBufferSize,
@@ -192,6 +193,30 @@ void HelloServer::serverMainFunction()
 {
           this->serverAcceptConnetion();
           while (1) {
-                    this->sendDataToClient("weojiwefw");
+                    char str[256]{ 0 };
+                    int recvStatus = this->reciveDataFromClient(str, sizeof(str) / sizeof(char));
+                    std::cout << "[CLIENT MESSAGE] FROM IP Address = "
+                              << inet_ntoa(this->m_client_connect_address.sin_addr)
+                              << "  Message Info: ";
+
+                    /*Client Exited Server*/
+                    if (recvStatus <= 0) {
+                              std::cout << "Client Exited" << std::endl;
+                              break;
+                    }
+                    else {
+                              std::cout << str << std::endl;
+                    }
+
+                    /*Client Still Connect to Server*/
+                    if (!strcmp(str, "getName")) {
+                              this->sendDataToClient("Valid Server Name Request");
+                    }
+                    else if (!strcmp(str,"getAge")) {
+                              this->sendDataToClient("Valid Server Run Time Request");
+                    }
+                    else {
+                              this->sendDataToClient("Invalid Request");
+                    }
           }
 }

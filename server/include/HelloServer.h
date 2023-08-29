@@ -38,9 +38,9 @@ public:
           void startServerListening(int backlog = SOMAXCONN);
           void serverMainFunction();
           void sendDataToClient(IN const char* _szSendBuf);
-          void reciveDataFromClient(
+          int reciveDataFromClient(
                     OUT char* _szRecvBuf,
-                    OUT int _szBufferSize
+                    IN int _szBufferSize
           );
 
 private:
