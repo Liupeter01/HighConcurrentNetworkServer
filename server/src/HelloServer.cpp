@@ -158,14 +158,20 @@ void HelloServer::serverAcceptConnetion()
 
 /*------------------------------------------------------------------------------------------------------
 * @function£ºvoid sendDataToClient
-* @param : [IN] const char *_szBuf
+* @param : 
+                    1.[IN] const char *_szBuf
+                    2.[IN] int _szBufferSize
 *------------------------------------------------------------------------------------------------------*/
-void HelloServer::sendDataToClient(IN const char* _szSendBuf)
+
+void  HelloServer::sendDataToClient(
+          IN const char* _szSendBuf,
+          IN int _szBufferSize
+)
 {
           ::send(
                     this->m_client_connect_socket,
                     _szSendBuf,
-                    static_cast<int>(strlen(_szSendBuf)+1),
+                    _szBufferSize,
                     0
           );
 }
@@ -197,26 +203,30 @@ void HelloServer::serverMainFunction()
                     int recvStatus = this->reciveDataFromClient(str, sizeof(str) / sizeof(char));
                     std::cout << "[CLIENT MESSAGE] FROM IP Address = "
                               << inet_ntoa(this->m_client_connect_address.sin_addr)
-                              << "  Message Info: ";
+                              << "  Message Info: " << ((recvStatus <= 0) ? "Client Exited" : str) << std::endl;
 
                     /*Client Exited Server*/
                     if (recvStatus <= 0) {
-                              std::cout << "Client Exited" << std::endl;
                               break;
-                    }
-                    else {
-                              std::cout << str << std::endl;
                     }
 
                     /*Client Still Connect to Server*/
-                    if (!strcmp(str, "getName")) {
-                              this->sendDataToClient("Valid Server Name Request");
-                    }
-                    else if (!strcmp(str,"getAge")) {
-                              this->sendDataToClient("Valid Server Run Time Request");
+                    if (!strcmp(str, "getServerInfo")) {
+                              DataPackage serverInfo = 
+                              {
+                                        "SERVER:127.0.0.1",
+                                        "SERVER RUNTIME:100"
+                              };
+                              this->sendDataToClient(
+                                        reinterpret_cast<const char*>(&serverInfo), 
+                                        sizeof(serverInfo)
+                              );
                     }
                     else {
-                              this->sendDataToClient("Invalid Request");
+                              this->sendDataToClient(
+                                        "Invalid Request", 
+                                        static_cast<int>(strlen("Invalid Request") + 1)
+                              );
                     }
           }
 }

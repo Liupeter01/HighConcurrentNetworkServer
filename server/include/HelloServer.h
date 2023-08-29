@@ -7,6 +7,9 @@
 #include<WinSock2.h>
 #pragma comment(lib,"ws2_32.lib")
 #endif
+
+#include "DataPackage.h"
+
 #include<iostream>
 #include<cassert>
 
@@ -37,7 +40,11 @@ public:
 public:
           void startServerListening(int backlog = SOMAXCONN);
           void serverMainFunction();
-          void sendDataToClient(IN const char* _szSendBuf);
+          void sendDataToClient(
+                    IN const char* _szSendBuf,
+                    IN int _szBufferSize
+          );
+
           int reciveDataFromClient(
                     OUT char* _szRecvBuf,
                     IN int _szBufferSize

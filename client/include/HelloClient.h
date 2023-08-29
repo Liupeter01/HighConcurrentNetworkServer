@@ -7,6 +7,9 @@
 #include<WinSock2.h>
 #pragma comment(lib,"ws2_32.lib")
 #endif
+
+#include "DataPackage.h"
+
 #include<iostream>
 #include<cassert>
 
@@ -28,7 +31,12 @@ public:
                     IN unsigned long _ipAddr, 
                     IN unsigned short _ipPort
           );
-          void sendDataToServer(IN const char* _szSendBuf);
+
+          void sendDataToServer(
+                    IN const char* _szSendBuf,
+                    IN int _szBufferSize
+          );
+
           void reciveDataFromServer(
                     OUT char* _szRecvBuf, 
                     IN OUT int _szBufferSize

@@ -66,14 +66,18 @@ void HelloClient::connectServer(
 
 /*------------------------------------------------------------------------------------------------------
 * @function£ºvoid sendDataToServer
-* @param : [IN] const char *_szBuf
+* @param :
+                    1.[IN] const char *_szBuf
+                    2.[IN] int _szBufferSize
 *------------------------------------------------------------------------------------------------------*/
-void HelloClient::sendDataToServer(IN const char *_szSendBuf)
+void HelloClient::sendDataToServer(
+          IN const char* _szSendBuf,
+          IN int _szBufferSize)
 {
           ::send(
                     this->m_client_socket,
                     _szSendBuf,
-                    static_cast<int>(strlen(_szSendBuf) + 1),
+                    _szBufferSize,
                     0
           );
 }
@@ -102,18 +106,24 @@ void HelloClient::reciveDataFromServer(
 void HelloClient::clientMainFunction()
 {
           while (true) {
-                    char _cmdMessage[256]{ 0 };
-                    std::cin.getline(_cmdMessage, 256);
-                    if (!strcmp(_cmdMessage, "exit")) {
+                    char _Message[256]{ 0 };
+                    std::cin.getline(_Message, 256);
+                    if (!strcmp(_Message, "exit")) {
                               std::cout << "[CLIENT EXIT] Client Exit Manually" << std::endl;
                               break;
                     }
-                    else if (strlen(_cmdMessage) != 0) {
-                              this->sendDataToServer(_cmdMessage);
+                    else if (strlen(_Message) != 0) {
+                              this->sendDataToServer(
+                                        _Message, 
+                                        sizeof(_Message) / sizeof(char)
+                              );
                     }
 
-                    char str[256]{ 0 };
-                    this->reciveDataFromServer(str, sizeof(str) / sizeof(char));
-                    std::cout << "[SERVER INFO] Message Info :" << str << std::endl;
+                    memset(_Message, 0, sizeof(_Message));
+                    this->reciveDataFromServer(_Message, sizeof(_Message) / sizeof(char));
+                    DataPackage* dataPackage = reinterpret_cast<DataPackage*>(_Message);
+                    std::cout << "[SERVER INFO] Message Info: " << std::endl
+                              << "->serverName = " << dataPackage->serverName << std::endl
+                              << "->serverRunTime = " << dataPackage->serverRunTime << std::endl;
           }
 }
