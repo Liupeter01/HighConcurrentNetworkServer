@@ -199,7 +199,7 @@ void HelloServer::serverMainFunction()
 {
           this->serverAcceptConnetion();
           while (1) {
-                    _PackageHeader packageHeader{ 0 };
+                    _PackageHeader packageHeader;
                     int  recvStatus = this->reciveDataFromClient(&packageHeader, sizeof(_PackageHeader)); // record recv data status
                     if (recvStatus <= 0) {                                              //Client Exit Manually 
                               break;
@@ -211,8 +211,11 @@ void HelloServer::serverMainFunction()
                               << "->PackageLength= " << packageHeader._packageLength << std::endl;
 
                     if (packageHeader._packageCmd == CMD_LOGIN) {
-                              _LoginData loginData{ 0 };
-                              recvStatus = this->reciveDataFromClient(&loginData, sizeof(_LoginData));
+                              _LoginData loginData;
+                              recvStatus = this->reciveDataFromClient(
+                                        reinterpret_cast<char*>(& loginData) + sizeof(_PackageHeader), 
+                                        packageHeader._packageLength - sizeof(_PackageHeader)
+                              );
                               loginData.loginStatus = true;                                                                               //set login status as true
 
                               std::cout << "[CLIENT LOGIN MESSAGE] FROM IP Address = "
@@ -223,8 +226,11 @@ void HelloServer::serverMainFunction()
                               this->sendDataToClient(&loginData, sizeof(loginData));
                     }
                     else if (packageHeader._packageCmd == CMD_LOGOUT) {
-                              _LogoutData logoutData{ 0 };
-                              recvStatus = this->reciveDataFromClient(&logoutData, sizeof(_LogoutData));
+                              _LogoutData logoutData;
+                              recvStatus = this->reciveDataFromClient(
+                                        reinterpret_cast<char*>(&logoutData) + sizeof(_PackageHeader),
+                                        packageHeader._packageLength - sizeof(_PackageHeader)
+                              );
                               logoutData.logoutStatus = true;                                                                               //set logout status as true
 
                               std::cout << "[CLIENT LOGOUT MESSAGE] FROM IP Address = "
@@ -234,7 +240,7 @@ void HelloServer::serverMainFunction()
                               this->sendDataToClient(&logoutData, sizeof(logoutData));
                     }
                     else if (packageHeader._packageCmd == CMD_SYSTEM) {
-                              _SystemData systemData{ "Server System","100" };
+                              _SystemData systemData("Server System", "100");
 
                               std::cout << "[CLIENT SYSTEM MESSAGE] FROM IP Address = "
                                         << inet_ntoa(this->m_client_connect_address.sin_addr) << std::endl;

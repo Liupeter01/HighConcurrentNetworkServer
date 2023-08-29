@@ -109,20 +109,15 @@ void HelloClient::clientMainFunction()
 {
           while (true) {
                     char _Message[256]{ 0 };
-                    _PackageHeader packageHeader{ 0 };
-
                     std::cin.getline(_Message, 256);
                     if (!strcmp(_Message, "exit")) {
                               std::cout << "[CLIENT EXIT] Client Exit Manually" << std::endl;
                               break;
                     }
                     else if (!strcmp(_Message, "login")) {
-                              _LoginData loginData{ "client-loopback404","1234567abc",false };
-                              _LoginData recvLoginData{ 0 };
+                              _LoginData loginData("client-loopback404", "1234567abc");
+                              _LoginData recvLoginData;
 
-                              packageHeader._packageCmd = CMD_LOGIN;
-                              packageHeader._packageLength = sizeof(loginData);
-                              this->sendDataToServer(&packageHeader, sizeof(packageHeader));
                               this->sendDataToServer(&loginData, sizeof(loginData));
 
                               this->reciveDataFromServer(&recvLoginData, sizeof(_LoginData));
@@ -133,12 +128,8 @@ void HelloClient::clientMainFunction()
                               }
                     }
                     else if (!strcmp(_Message, "logout")) {
-                              _LogoutData logoutData{ "client-loopback404" ,false };
-                              _LogoutData recvLogoutData{ 0 };
-
-                              packageHeader._packageCmd = CMD_LOGOUT;
-                              packageHeader._packageLength = sizeof(logoutData);
-                              this->sendDataToServer(&packageHeader, sizeof(packageHeader));
+                              _LogoutData logoutData("client-loopback404");
+                              _LogoutData recvLogoutData;
                               this->sendDataToServer(&logoutData, sizeof(logoutData));
 
                               this->reciveDataFromServer(&recvLogoutData, sizeof(_LogoutData));
@@ -149,9 +140,7 @@ void HelloClient::clientMainFunction()
                     }
                     else if (!strcmp(_Message, "system")) {
                               _SystemData systemData;
-                              packageHeader._packageCmd = CMD_SYSTEM;
-                              packageHeader._packageLength = 0;
-                              this->sendDataToServer(&packageHeader, sizeof(packageHeader));
+                              this->sendDataToServer(&systemData, sizeof(_PackageHeader));
 
                               this->reciveDataFromServer(&systemData, sizeof(_SystemData));
                               std::cout << "[SERVER INFO] Message Info: " << std::endl
