@@ -147,15 +147,19 @@ void HelloClient::clientMainFunction()
                                                   << "->userName = " << recvLogoutData.userName << std::endl;
                               }
                     }
-                    else {
+                    else if (!strcmp(_Message, "system")) {
                               _SystemData systemData;
                               packageHeader._packageCmd = CMD_SYSTEM;
                               packageHeader._packageLength = 0;
+                              this->sendDataToServer(&packageHeader, sizeof(packageHeader));
 
                               this->reciveDataFromServer(&systemData, sizeof(_SystemData));
                               std::cout << "[SERVER INFO] Message Info: " << std::endl
                                         << "->serverName = " << systemData.serverName << std::endl
                                         << "->serverRunTime = " << systemData.serverRunTime << std::endl;
+                    }
+                    else {
+                              std::cout << "[CLIENT ERROR INFO] Invalid Command Input!" << std::endl;
                     }
           }
 }

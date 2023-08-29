@@ -205,14 +205,15 @@ void HelloServer::serverMainFunction()
                               break;
                     }
 
-                    std::cout << "[CLIENT CONNECT MESSAGE] FROM IP Address = "
+                    std::cout << "[CLIENT COMMAND MESSAGE] FROM IP Address = "
                               << inet_ntoa(this->m_client_connect_address.sin_addr) << std::endl
                               << "->Command= " << packageHeader._packageCmd << std::endl
                               << "->PackageLength= " << packageHeader._packageLength << std::endl;
 
                     if (packageHeader._packageCmd == CMD_LOGIN) {
-                              _LoginData loginData{ 0,0,true };
+                              _LoginData loginData{ 0 };
                               recvStatus = this->reciveDataFromClient(&loginData, sizeof(_LoginData));
+                              loginData.loginStatus = true;                                                                               //set login status as true
 
                               std::cout << "[CLIENT LOGIN MESSAGE] FROM IP Address = "
                                         << inet_ntoa(this->m_client_connect_address.sin_addr) << std::endl
@@ -222,8 +223,9 @@ void HelloServer::serverMainFunction()
                               this->sendDataToClient(&loginData, sizeof(loginData));
                     }
                     else if (packageHeader._packageCmd == CMD_LOGOUT) {
-                              _LogoutData logoutData{ 0,true };
+                              _LogoutData logoutData{ 0 };
                               recvStatus = this->reciveDataFromClient(&logoutData, sizeof(_LogoutData));
+                              logoutData.logoutStatus = true;                                                                               //set logout status as true
 
                               std::cout << "[CLIENT LOGOUT MESSAGE] FROM IP Address = "
                                         << inet_ntoa(this->m_client_connect_address.sin_addr) << std::endl
