@@ -40,15 +40,12 @@ public:
 public:
           void startServerListening(int backlog = SOMAXCONN);
           void serverMainFunction();
-          void sendDataToClient(
-                    IN const char* _szSendBuf,
-                    IN int _szBufferSize
-          );
 
-          int reciveDataFromClient(
-                    OUT char* _szRecvBuf,
-                    IN int _szBufferSize
-          );
+          template<typename T>
+          void sendDataToClient(IN T* _szSendBuf, IN int _szBufferSize);
+
+          template<typename T>
+          int reciveDataFromClient(OUT T* _szRecvBuf, IN int _szBufferSize);
 
 private:
           void serverAcceptConnetion();

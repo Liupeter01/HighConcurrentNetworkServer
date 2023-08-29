@@ -159,18 +159,17 @@ void HelloServer::serverAcceptConnetion()
 /*------------------------------------------------------------------------------------------------------
 * @function£ºvoid sendDataToClient
 * @param : 
-                    1.[IN] const char *_szBuf
+                    1.[IN]  T* _szSendBuf,
                     2.[IN] int _szBufferSize
 *------------------------------------------------------------------------------------------------------*/
-
+template<typename T>
 void  HelloServer::sendDataToClient(
-          IN const char* _szSendBuf,
-          IN int _szBufferSize
-)
+          IN  T* _szSendBuf,
+          IN int _szBufferSize)
 {
           ::send(
                     this->m_client_connect_socket,
-                    _szSendBuf,
+                    reinterpret_cast<const char*>(_szSendBuf),
                     _szBufferSize,
                     0
           );
@@ -179,17 +178,18 @@ void  HelloServer::sendDataToClient(
 /*------------------------------------------------------------------------------------------------------
 * @function£ºvoid reciveDataFromClient
 * @param :
-                    1. [OUT] char* _szRecvBuf
+                    1. [OUT]  T* _szRecvBuf,
                     2. [IN] int &_szBufferSize
 * @retvalue: int  
 *------------------------------------------------------------------------------------------------------*/
+template<typename T>
 int HelloServer::reciveDataFromClient(
-          OUT char* _szRecvBuf,
+          OUT T* _szRecvBuf,
           IN int _szBufferSize)
 {
           return  ::recv(
                     this->m_client_connect_socket,
-                    _szRecvBuf,
+                    reinterpret_cast<char*>(_szRecvBuf),
                     _szBufferSize,
                     0
           );
@@ -199,34 +199,49 @@ void HelloServer::serverMainFunction()
 {
           this->serverAcceptConnetion();
           while (1) {
-                    char str[256]{ 0 };
-                    int recvStatus = this->reciveDataFromClient(str, sizeof(str) / sizeof(char));
-                    std::cout << "[CLIENT MESSAGE] FROM IP Address = "
-                              << inet_ntoa(this->m_client_connect_address.sin_addr)
-                              << "  Message Info: " << ((recvStatus <= 0) ? "Client Exited" : str) << std::endl;
-
-                    /*Client Exited Server*/
-                    if (recvStatus <= 0) {
+                    _PackageHeader packageHeader{ 0 };
+                    int  recvStatus = this->reciveDataFromClient(&packageHeader, sizeof(_PackageHeader)); // record recv data status
+                    if (recvStatus <= 0) {                                              //Client Exit Manually 
                               break;
                     }
 
-                    /*Client Still Connect to Server*/
-                    if (!strcmp(str, "getServerInfo")) {
-                              DataPackage serverInfo = 
-                              {
-                                        "SERVER:127.0.0.1",
-                                        "SERVER RUNTIME:100"
-                              };
-                              this->sendDataToClient(
-                                        reinterpret_cast<const char*>(&serverInfo), 
-                                        sizeof(serverInfo)
-                              );
+                    std::cout << "[CLIENT CONNECT MESSAGE] FROM IP Address = "
+                              << inet_ntoa(this->m_client_connect_address.sin_addr) << std::endl
+                              << "->Command= " << packageHeader._packageCmd << std::endl
+                              << "->PackageLength= " << packageHeader._packageLength << std::endl;
+
+                    if (packageHeader._packageCmd == CMD_LOGIN) {
+                              _LoginData loginData{ 0,0,true };
+                              recvStatus = this->reciveDataFromClient(&loginData, sizeof(_LoginData));
+
+                              std::cout << "[CLIENT LOGIN MESSAGE] FROM IP Address = "
+                                        << inet_ntoa(this->m_client_connect_address.sin_addr) << std::endl
+                                        << "->UserName= " << loginData.userName << std::endl
+                                        << "->UserPassword= " << loginData.userPassword << std::endl;
+
+                              this->sendDataToClient(&loginData, sizeof(loginData));
                     }
-                    else {
-                              this->sendDataToClient(
-                                        "Invalid Request", 
-                                        static_cast<int>(strlen("Invalid Request") + 1)
-                              );
+                    else if (packageHeader._packageCmd == CMD_LOGOUT) {
+                              _LogoutData logoutData{ 0,true };
+                              recvStatus = this->reciveDataFromClient(&logoutData, sizeof(_LogoutData));
+
+                              std::cout << "[CLIENT LOGOUT MESSAGE] FROM IP Address = "
+                                        << inet_ntoa(this->m_client_connect_address.sin_addr) << std::endl
+                                        << "->UserName= " << logoutData.userName << std::endl;
+
+                              this->sendDataToClient(&logoutData, sizeof(logoutData));
+                    }
+                    else if (packageHeader._packageCmd == CMD_SYSTEM) {
+                              _SystemData systemData{ "Server System","100" };
+
+                              std::cout << "[CLIENT SYSTEM MESSAGE] FROM IP Address = "
+                                        << inet_ntoa(this->m_client_connect_address.sin_addr) << std::endl;
+
+                              this->sendDataToClient(&systemData, sizeof(_SystemData));
+                    }
+
+                    if (recvStatus <= 0) {                                              //Client Exit Manually
+                              break;
                     }
           }
 }

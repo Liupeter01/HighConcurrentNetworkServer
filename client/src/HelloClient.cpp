@@ -67,16 +67,17 @@ void HelloClient::connectServer(
 /*------------------------------------------------------------------------------------------------------
 * @function£ºvoid sendDataToServer
 * @param :
-                    1.[IN] const char *_szBuf
+                    1.[IN] T*_szBuf
                     2.[IN] int _szBufferSize
 *------------------------------------------------------------------------------------------------------*/
+template<typename T>
 void HelloClient::sendDataToServer(
-          IN const char* _szSendBuf,
+          IN T* _szSendBuf,
           IN int _szBufferSize)
 {
           ::send(
                     this->m_client_socket,
-                    _szSendBuf,
+                    reinterpret_cast<const char*>(_szSendBuf),
                     _szBufferSize,
                     0
           );
@@ -85,16 +86,17 @@ void HelloClient::sendDataToServer(
 /*------------------------------------------------------------------------------------------------------
 * @function£ºvoid reciveDataFromServer
 * @param : 
-                    1. [OUT] char* _szRecvBuf 
+                    1. [OUT] T* _szRecvBuf 
                     2. [IN OUT] int _szBufferSize
 *------------------------------------------------------------------------------------------------------*/
+template<typename T>
 void HelloClient::reciveDataFromServer(
-          OUT char* _szRecvBuf,
+          OUT T* _szRecvBuf,
           IN OUT int _szBufferSize)
 {
           ::recv(
                     this->m_client_socket, 
-                    _szRecvBuf, 
+                    reinterpret_cast<char*>(_szRecvBuf),
                     _szBufferSize,
                     0
           );
@@ -107,23 +109,53 @@ void HelloClient::clientMainFunction()
 {
           while (true) {
                     char _Message[256]{ 0 };
+                    _PackageHeader packageHeader{ 0 };
+
                     std::cin.getline(_Message, 256);
                     if (!strcmp(_Message, "exit")) {
                               std::cout << "[CLIENT EXIT] Client Exit Manually" << std::endl;
                               break;
                     }
-                    else if (strlen(_Message) != 0) {
-                              this->sendDataToServer(
-                                        _Message, 
-                                        sizeof(_Message) / sizeof(char)
-                              );
-                    }
+                    else if (!strcmp(_Message, "login")) {
+                              _LoginData loginData{ "client-loopback404","1234567abc",false };
+                              _LoginData recvLoginData{ 0 };
 
-                    memset(_Message, 0, sizeof(_Message));
-                    this->reciveDataFromServer(_Message, sizeof(_Message) / sizeof(char));
-                    DataPackage* dataPackage = reinterpret_cast<DataPackage*>(_Message);
-                    std::cout << "[SERVER INFO] Message Info: " << std::endl
-                              << "->serverName = " << dataPackage->serverName << std::endl
-                              << "->serverRunTime = " << dataPackage->serverRunTime << std::endl;
+                              packageHeader._packageCmd = CMD_LOGIN;
+                              packageHeader._packageLength = sizeof(loginData);
+                              this->sendDataToServer(&packageHeader, sizeof(packageHeader));
+                              this->sendDataToServer(&loginData, sizeof(loginData));
+
+                              this->reciveDataFromServer(&recvLoginData, sizeof(_LoginData));
+                              if (recvLoginData.loginStatus) {
+                                        std::cout << "[CLIENT LOGIN INFO] Message Info: " << std::endl
+                                                  << "->userName = " << recvLoginData.userName << std::endl
+                                                  << "->userPassword = " << recvLoginData.userPassword << std::endl;
+                              }
+                    }
+                    else if (!strcmp(_Message, "logout")) {
+                              _LogoutData logoutData{ "client-loopback404" ,false };
+                              _LogoutData recvLogoutData{ 0 };
+
+                              packageHeader._packageCmd = CMD_LOGOUT;
+                              packageHeader._packageLength = sizeof(logoutData);
+                              this->sendDataToServer(&packageHeader, sizeof(packageHeader));
+                              this->sendDataToServer(&logoutData, sizeof(logoutData));
+
+                              this->reciveDataFromServer(&recvLogoutData, sizeof(_LogoutData));
+                              if (recvLogoutData.logoutStatus) {
+                                        std::cout << "[CLIENT LOGOUT INFO] Message Info: " << std::endl
+                                                  << "->userName = " << recvLogoutData.userName << std::endl;
+                              }
+                    }
+                    else {
+                              _SystemData systemData;
+                              packageHeader._packageCmd = CMD_SYSTEM;
+                              packageHeader._packageLength = 0;
+
+                              this->reciveDataFromServer(&systemData, sizeof(_SystemData));
+                              std::cout << "[SERVER INFO] Message Info: " << std::endl
+                                        << "->serverName = " << systemData.serverName << std::endl
+                                        << "->serverRunTime = " << systemData.serverRunTime << std::endl;
+                    }
           }
 }

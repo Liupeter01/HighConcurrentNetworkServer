@@ -32,15 +32,12 @@ public:
                     IN unsigned short _ipPort
           );
 
-          void sendDataToServer(
-                    IN const char* _szSendBuf,
-                    IN int _szBufferSize
-          );
+          template<typename T>
+          void sendDataToServer(IN T* _szSendBuf, IN int _szBufferSize);
 
-          void reciveDataFromServer(
-                    OUT char* _szRecvBuf, 
-                    IN OUT int _szBufferSize
-          );
+          template<typename T>
+          void reciveDataFromServer(OUT T* _szRecvBuf, IN OUT int _szBufferSize);
+
           void clientMainFunction();
 
 private:
