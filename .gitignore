@@ -9,3 +9,4 @@
 /HighConcurrentNetworkServer
 /temp/x64/Debug
 *.sln
+.DS_Store
