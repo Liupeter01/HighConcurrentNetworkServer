@@ -221,7 +221,7 @@ int HelloServer::reciveDataFromClient(
 void HelloServer::serverMainFunction()
 {
           while (1) {
-                    FD_ZERO(&m_fdread);                                                              //clean fd_read
+;                    FD_ZERO(&m_fdread);                                                              //clean fd_read
                     FD_ZERO(&m_fdwrite);                                                             //clean fd_write
                     FD_ZERO(&m_fdexception);                                                      //clean fd_exception
 
@@ -258,9 +258,10 @@ void HelloServer::serverMainFunction()
                               );
                               this->m_clientVec.emplace_back(_clientSocket, _clientAddress);
                     }
-                    for (auto ib = this->m_clientVec.begin(); ib != this->m_clientVec.end(); ib++) {
-                              if (!this->funtionLogicLayer(ib)) {                             //Client Exit Manually                  
-                                        this->m_clientVec.erase(ib);                        //Erase current unavailable client's socket
+                    for (std::vector<_ClientAddr>::iterator ib = this->m_clientVec.begin(); ib != this->m_clientVec.end(); ib++) {
+                              if (!this->funtionLogicLayer(ib)) {                                                                       //Client Exit Manually                  
+                                        //vector iterator not incrementable
+                                        ib = this->m_clientVec.erase(ib);                        //Erase current unavailable client's socket
                               }
                     }
           }
