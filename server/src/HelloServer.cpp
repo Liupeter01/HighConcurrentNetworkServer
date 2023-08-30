@@ -221,7 +221,7 @@ int HelloServer::reciveDataFromClient(
 void HelloServer::serverMainFunction()
 {
           while (1) {
-;                    FD_ZERO(&m_fdread);                                                              //clean fd_read
+                    FD_ZERO(&m_fdread);                                                              //clean fd_read
                     FD_ZERO(&m_fdwrite);                                                             //clean fd_write
                     FD_ZERO(&m_fdexception);                                                      //clean fd_exception
 
@@ -243,7 +243,7 @@ void HelloServer::serverMainFunction()
                     }
                     /*SERVER ACCELERATION PROPOSESD*/
                     if (this->m_fdread.fd_count) {                                         //in fd_read array, no socket has been found!!               
-                    
+
                     }
 
                     if (FD_ISSET(this->m_server_socket, &m_fdread)) {    //Detect client message input signal
@@ -260,24 +260,25 @@ void HelloServer::serverMainFunction()
                     }
 
                     /*Currently,there is no any client is the container, so there is no reason to excute following instructions */
-                    if(!this->m_clientVec.size()){
-                        for (std::vector<_ClientAddr>::iterator ib = this->m_clientVec.begin(); ib != this->m_clientVec.end();) {
-                            
-		            /*Entering main logic layer std::vector<_ClientAddr>::iterator as an input to the main system
-			     * retvalue: when functionlogicLayer return a value of false it means [CLIENT EXIT MANUALLY]]
-			     */
-			    if (!this->funtionLogicLayer(ib)) {
-                                    /*There is a kind of sceniro which there is only one client who still remainning connection to the server*/
-                                    if(ib = this->m_clientVec.end()){		             //Erase Current unavailable client's socket
-                                    	this->m_clientVec.erase(ib);
-					break;	
-				    }	
-				    else{
-				    	ib = this->m_clientVec.erase(ib);		
-				    }				    
-				    ib++;
-                            }
-                        }
+                    if (!this->m_clientVec.size()) {
+                              for (std::vector<_ClientAddr>::iterator ib = this->m_clientVec.begin(); ib != this->m_clientVec.end();) {
+                                     /*
+                                     *Entering main logic layer std::vector<_ClientAddr>::iterator as an input to the main system
+                                     * retvalue: when functionlogicLayer return a value of false it means [CLIENT EXIT MANUALLY]]
+                                     */
+                                        if (!this->funtionLogicLayer(ib)) {
+
+                                                  /*There is a kind of sceniro which there is only one client who still remainning connection to the server*/
+                                                  if (ib == this->m_clientVec.end()) {		             //Erase Current unavailable client's socket
+                                                            this->m_clientVec.erase(ib);
+                                                            break;
+                                                  }
+                                                  else {
+                                                            ib = this->m_clientVec.erase(ib);
+                                                  }
+                                                  ib++;
+                                        }
+                              }
                     }
           }
 }
