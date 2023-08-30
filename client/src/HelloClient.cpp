@@ -111,7 +111,6 @@ void HelloClient::clientMainFunction()
           while (true) 
           {
                     this->initClientIOMultiplexing();
-                    this->initClientSelectModel();
                     if (this->initClientSelectModel()) {
                               break;
                     }
