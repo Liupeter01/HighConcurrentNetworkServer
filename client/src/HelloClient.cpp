@@ -104,11 +104,102 @@ int HelloClient::reciveDataFromServer(
 }
 
 /*------------------------------------------------------------------------------------------------------
-* @function£ºvoid clientMainCFunction
+*  Currently, clientMainFunction excute on a new thread(std::thread m_clientInterface)
+* @function: void functionClientInput
+* @param: [IN] SOCKET & _client
+*------------------------------------------------------------------------------------------------------*/
+void HelloClient::functionClientInput(IN SOCKET& _client)
+{
+          m_interfacePromise.set_value(true);                                                             //set symphore default value
+          while (true) {
+                    char _Message[256]{ 0 };
+                    std::cin.getline(_Message, 256);
+                    if (!strcmp(_Message, "exit")) {
+                              std::cout << "[CLIENT EXIT] Client Exit Manually" << std::endl;
+                              this->m_interfacePromise.set_value(false);                            //set symphore value to inform other thread
+                              break;
+                    }
+                    else if (!strcmp(_Message, "login")) {
+                              _LoginData loginData("client-loopback404", "1234567abc");
+                              this->sendDataToServer(_client, &loginData, sizeof(loginData));
+                    }
+                    else if (!strcmp(_Message, "logout")) {
+                              _LogoutData logoutData("client-loopback404");
+                              this->sendDataToServer(_client, &logoutData, sizeof(logoutData));
+                    }
+                    else if (!strcmp(_Message, "system")) {
+                              _SystemData systemData;
+                              this->sendDataToServer(_client, &systemData, sizeof(_PackageHeader));
+                    }
+                    else {
+                              std::cout << "[CLIENT ERROR INFO] Invalid Command Input!" << std::endl;
+                    }
+          }
+}
+
+/*------------------------------------------------------------------------------------------------------
+* @function£ºbool functionLogicLayer
+*------------------------------------------------------------------------------------------------------*/
+bool HelloClient::functionLogicLayer()
+{
+          char _buffer[256]{ 0 };
+          if (this->reciveDataFromServer(this->m_client_socket, &_buffer, sizeof(_PackageHeader))<=0) {
+                    return false;
+          }
+          if ((reinterpret_cast<_PackageHeader*>(_buffer))->_packageCmd == CMD_LOGIN) {
+                    _LoginData* recvLoginData(reinterpret_cast<_LoginData*>(_buffer));
+                    this->reciveDataFromServer(
+                              this->m_client_socket,
+                              _buffer + sizeof(_PackageHeader),
+                              (reinterpret_cast<_PackageHeader*>(_buffer))->_packageLength - sizeof(_PackageHeader)
+                    );
+                    if (recvLoginData->loginStatus) {
+                              std::cout << "[CLIENT LOGIN INFO] Message Info: " << std::endl
+                                        << "->userName = " << recvLoginData->userName << std::endl
+                                        << "->userPassword = " << recvLoginData->userPassword << std::endl;
+                    }
+          }
+          else if ((reinterpret_cast<_PackageHeader*>(_buffer))->_packageCmd == CMD_LOGOUT) {
+                    _LogoutData* recvLogoutData(reinterpret_cast<_LogoutData*>(_buffer));
+                    this->reciveDataFromServer(
+                              this->m_client_socket,
+                              _buffer + sizeof(_PackageHeader),
+                              (reinterpret_cast<_PackageHeader*>(_buffer))->_packageLength - sizeof(_PackageHeader)
+                    );
+                    if (recvLogoutData->logoutStatus) {
+                              std::cout << "[CLIENT LOGOUT INFO] Message Info: " << std::endl
+                                        << "->userName = " << recvLogoutData->userName << std::endl;
+                    }
+          }
+          else if ((reinterpret_cast<_PackageHeader*>(_buffer))->_packageCmd == CMD_SYSTEM) {
+                    _SystemData* systemData(reinterpret_cast<_SystemData*>(_buffer));
+                    this->reciveDataFromServer(
+                              this->m_client_socket,
+                              _buffer + sizeof(_PackageHeader),
+                              (reinterpret_cast<_PackageHeader*>(_buffer))->_packageLength - sizeof(_PackageHeader)
+                    );
+                    std::cout << "[SERVER INFO] Message Info: " << std::endl
+                              << "->serverName = " << systemData->serverName << std::endl
+                              << "->serverRunTime = " << systemData->serverRunTime << std::endl;
+          }
+          else {
+                    std::cout << "[CLIENT UNKOWN INFO] Message Info: Unkown Command" << std::endl;
+          }
+          return true;
+}
+
+/*------------------------------------------------------------------------------------------------------
+* Currently, clientMainFunction only excute on the main Thread
+* @function£ºvoid clientMainFunction
 *------------------------------------------------------------------------------------------------------*/
 void HelloClient::clientMainFunction()
 {
-          while (true) 
+          auto res = std::async(                                                                              //shared_future requires std::async to startup
+                    std::launch::async, 
+                    &HelloClient::functionClientInput, this, 
+                    std::ref(m_client_socket)
+          );
+          while (this->m_interfaceFuture.get())
           {
                     this->initClientIOMultiplexing();
                     if (this->initClientSelectModel()) {
@@ -116,35 +207,12 @@ void HelloClient::clientMainFunction()
                     }
                     /*CLIENT ACCELERATION PROPOSESD*/
                     if (!this->m_fdread.fd_count) {                                         //in fd_read array, no socket has been found!!               
-
                     }
                     if (FD_ISSET(this->m_client_socket, &this->m_fdread)) {
                               FD_CLR(this->m_client_socket, &this->m_fdread);
                               if (!this->functionLogicLayer()) {                          //Client Exit Manually
                                         break;
                               }
-                    }
-                    this->functionClientLayer();
-                    char _Message[256]{ 0 };
-                    std::cin.getline(_Message, 256);
-
-                    if (!strcmp(_Message, "exit")) {
-                              std::cout << "[CLIENT EXIT] Client Exit Manually" << std::endl;
-                    }
-                    else if (!strcmp(_Message, "login")) {
-                              _LoginData loginData("client-loopback404", "1234567abc");
-                              this->sendDataToServer(this->m_client_socket, &loginData, sizeof(loginData));
-                    }
-                    else if (!strcmp(_Message, "logout")) {
-                              _LogoutData logoutData("client-loopback404");
-                              this->sendDataToServer(this->m_client_socket, &logoutData, sizeof(logoutData));
-                    }
-                    else if (!strcmp(_Message, "system")) {
-                              _SystemData systemData;
-                              this->sendDataToServer(this->m_client_socket, &systemData, sizeof(_PackageHeader));
-                    }
-                    else {
-                              std::cout << "[CLIENT ERROR INFO] Invalid Command Input!" << std::endl;
                     }
           }
 }
@@ -161,7 +229,7 @@ void HelloClient::initClientIOMultiplexing()
 }
 
 /*------------------------------------------------------------------------------------------------------
-* @function£ºbool initClientSelectModel
+* @function: bool initClientSelectModel
 *------------------------------------------------------------------------------------------------------*/
 bool HelloClient::initClientSelectModel()
 {
@@ -170,66 +238,4 @@ bool HelloClient::initClientSelectModel()
                     nullptr,
                     nullptr,
                     reinterpret_cast<const timeval*>(&this->m_timeoutSetting)) < 0);                  //Select Task Ended!
-}
-
-/*------------------------------------------------------------------------------------------------------
-* @function£ºbool functionLogicLayer
-*------------------------------------------------------------------------------------------------------*/
-bool HelloClient::functionLogicLayer()
-{
-          char _buffer[256]{ 0 };
-          if (this->reciveDataFromServer(this->m_client_socket, &_buffer, sizeof(_PackageHeader))) {
-                    return false;
-          }
-          if ((reinterpret_cast<_PackageHeader*>(_buffer))->_packageCmd == CMD_LOGIN) {
-                    _LoginData* recvLoginData(reinterpret_cast<_LoginData*>(_buffer));
-                    this->reciveDataFromServer(
-                              this->m_client_socket, 
-                              _buffer + +sizeof(_PackageHeader),
-                              (reinterpret_cast<_PackageHeader*>(_buffer))->_packageLength - sizeof(_PackageHeader)
-                    );
-                    if (recvLoginData->loginStatus) {
-                              std::cout << "[CLIENT LOGIN INFO] Message Info: " << std::endl
-                                        << "->userName = " << recvLoginData->userName << std::endl
-                                        << "->userPassword = " << recvLoginData->userPassword << std::endl;
-                    }
-          }
-          else if ((reinterpret_cast<_PackageHeader*>(_buffer))->_packageCmd == CMD_LOGOUT) {
-                    _LogoutData *recvLogoutData(reinterpret_cast<_LogoutData*>(_buffer));
-                    this->reciveDataFromServer(
-                              this->m_client_socket,
-                              _buffer + +sizeof(_PackageHeader),
-                              (reinterpret_cast<_PackageHeader*>(_buffer))->_packageLength - sizeof(_PackageHeader)
-                    );
-                    if (recvLogoutData->logoutStatus) {
-                              std::cout << "[CLIENT LOGOUT INFO] Message Info: " << std::endl
-                                        << "->userName = " << recvLogoutData->userName << std::endl;
-                    }
-          }
-          else if ((reinterpret_cast<_PackageHeader*>(_buffer))->_packageCmd == CMD_SYSTEM) {
-                    _SystemData *systemData(reinterpret_cast<_SystemData*>(_buffer));
-                    this->reciveDataFromServer(
-                              this->m_client_socket,
-                              _buffer + +sizeof(_PackageHeader),
-                              (reinterpret_cast<_PackageHeader*>(_buffer))->_packageLength - sizeof(_PackageHeader)
-                    );
-                    std::cout << "[SERVER INFO] Message Info: " << std::endl
-                              << "->serverName = " << systemData->serverName << std::endl
-                              << "->serverRunTime = " << systemData->serverRunTime << std::endl;
-          }
-          else{
-                    std::cout << "[CLIENT UNKOWN INFO] Message Info: Unkown Command" << std::endl;
-          }
-          return true;
-}
-
-/*------------------------------------------------------------------------------------------------------
-* @function:  functionClientLayer
-* @description: process the client's own business
-* @retvalue : bool
-*------------------------------------------------------------------------------------------------------*/
-bool HelloClient::functionClientLayer()
-{
-          std::cout << "handle client's own business!" << std::endl;
-          return true;
 }
