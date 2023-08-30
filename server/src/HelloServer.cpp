@@ -38,7 +38,7 @@ HelloServer::HelloServer(unsigned short _ipPort)
 }
 
 /*------------------------------------------------------------------------------------------------------
-* @function£ºHelloServer::HelloServer
+* @functionï¿½ï¿½HelloServer::HelloServer
 * @param : 1.[IN] unsigned long _ipAddr
                     2.[IN] unsigned short _port
 *------------------------------------------------------------------------------------------------------*/
@@ -63,7 +63,7 @@ HelloServer::~HelloServer()
 
 /*------------------------------------------------------------------------------------------------------
 * use socket api to create a ipv4 and tcp protocol socket 
-* @function£ºstatic SOCKET createServerSocket
+* @functionï¿½ï¿½static SOCKET createServerSocket
 * @param :
 *                   1.[IN] int af
 *                   2.[IN] int type
@@ -79,7 +79,7 @@ SOCKET HelloServer::createServerSocket(
 
 /*------------------------------------------------------------------------------------------------------
 * use socket api to create a ipv4 and tcp protocol socket
-* @function£ºstatic SOCKET createServerSocket
+* @functionï¿½ï¿½static SOCKET createServerSocket
 * @param :
 *                   1.[IN] SOCKET  serverSocket
 *                   2.[IN] int backlog
@@ -93,7 +93,7 @@ int HelloServer::startListeningConnection(
 
 /*------------------------------------------------------------------------------------------------------
 * use accept function to accept connection which come from client
-* @function£ºstatic bool acceptClientConnection
+* @functionï¿½ï¿½static bool acceptClientConnection
 * @param :
 *                   1.[IN] SOCKET  serverSocket
 *                   3.[OUT] SOCKET *clientSocket,
@@ -124,7 +124,7 @@ bool HelloServer::acceptClientConnection(
 
 /*------------------------------------------------------------------------------------------------------
 * init server ip address and port and bind it with server socket
-* @function£ºvoid initServerAddressBinding
+* @functionï¿½ï¿½void initServerAddressBinding
 * @implementation: create server socket and bind ip address info
 * @param : 1.[IN] unsigned long _ipAddr
                     2.[IN] unsigned short _port
@@ -161,7 +161,7 @@ void HelloServer::initServerAddressBinding(
 
 /*------------------------------------------------------------------------------------------------------
 * init server ip address and port and bind it with server socket
-* @function£ºvoid initServerAddressBinding
+* @functionï¿½ï¿½void initServerAddressBinding
 * @param : unsigned short _port
 *------------------------------------------------------------------------------------------------------*/
 void HelloServer::startServerListening(int backlog)
@@ -176,7 +176,7 @@ void HelloServer::startServerListening(int backlog)
 }
 
 /*------------------------------------------------------------------------------------------------------
-* @function£ºvoid sendDataToClient
+* @functionï¿½ï¿½void sendDataToClient
 * @param : 
 *                  1.[IN]   SOCKET& _clientSocket,
                     2.[IN]  T* _szSendBuf,
@@ -197,7 +197,7 @@ void  HelloServer::sendDataToClient(
 }
 
 /*------------------------------------------------------------------------------------------------------
-* @function£ºvoid reciveDataFromClient
+* @functionï¿½ï¿½void reciveDataFromClient
 * @param :
                     1. [IN]  SOCKET&  _clientSocket,
                     1. [OUT]  T* _szRecvBuf,
@@ -258,17 +258,32 @@ void HelloServer::serverMainFunction()
                               );
                               this->m_clientVec.emplace_back(_clientSocket, _clientAddress);
                     }
-                    for (std::vector<_ClientAddr>::iterator ib = this->m_clientVec.begin(); ib != this->m_clientVec.end(); ib++) {
-                              if (!this->funtionLogicLayer(ib)) {                                                                       //Client Exit Manually                  
-                                        //vector iterator not incrementable
-                                        ib = this->m_clientVec.erase(ib);                        //Erase current unavailable client's socket
-                              }
+
+                    /*Currently,there is no any client is the container, so there is no reason to excute following instructions */
+                    if(!this->m_clientVec.size()){
+                        for (std::vector<_ClientAddr>::iterator ib = this->m_clientVec.begin(); ib != this->m_clientVec.end();) {
+                            
+		            /*Entering main logic layer std::vector<_ClientAddr>::iterator as an input to the main system
+			     * retvalue: when functionlogicLayer return a value of false it means [CLIENT EXIT MANUALLY]]
+			     */
+			    if (!this->funtionLogicLayer(ib)) {
+                                    /*There is a kind of sceniro which there is only one client who still remainning connection to the server*/
+                                    if(ib = this->m_clientVec.end()){		             //Erase Current unavailable client's socket
+                                    	this->m_clientVec.erase(ib);
+					break;	
+				    }	
+				    else{
+				    	ib = this->m_clientVec.erase(ib);		
+				    }				    
+				    ib++;
+                            }
+                        }
                     }
           }
 }
 
 /*------------------------------------------------------------------------------------------------------
-* @function£ºvoid funtionLogicLayer
+* @functionï¿½ï¿½void funtionLogicLayer
 * @param: [IN] std::vector<_ClientAddr>::iterator
 * @description: process the request from clients
 * @retvalue : bool

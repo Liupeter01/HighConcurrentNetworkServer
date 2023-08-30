@@ -1,10 +1,10 @@
 TARGET:= Server
 SRC:=$(wildcard *.cpp)
 OBJS:=$(patsubst %.cpp,%.o,$(SRC))
+CLANG:=
 
 $(TARGET):$(OBJS)
-	$(CXX) $^ -o $@
-
+	$(CLANG) $^ -o $@
 all:
 	echo $(SRC)
 
