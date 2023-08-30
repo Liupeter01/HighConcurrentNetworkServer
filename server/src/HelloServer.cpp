@@ -17,6 +17,8 @@ _ClientAddr::_ClientAddr(SOCKET _socket, sockaddr_in _addr)
 
 _ClientAddr::~_ClientAddr()
 {
+          //[POTIENTAL BUG HERE!]: why _clientaddr's dtor was deployed
+         // ::closesocket(this->m_clientSocket);
           this->m_clientSocket = INVALID_SOCKET;
           memset(
                     reinterpret_cast<void*>(&this->m_clientAddr),
@@ -38,7 +40,7 @@ HelloServer::HelloServer(unsigned short _ipPort)
 }
 
 /*------------------------------------------------------------------------------------------------------
-* @function��HelloServer::HelloServer
+* @function: HelloServer::HelloServer
 * @param : 1.[IN] unsigned long _ipAddr
                     2.[IN] unsigned short _port
 *------------------------------------------------------------------------------------------------------*/
@@ -63,7 +65,7 @@ HelloServer::~HelloServer()
 
 /*------------------------------------------------------------------------------------------------------
 * use socket api to create a ipv4 and tcp protocol socket 
-* @function��static SOCKET createServerSocket
+* @function: static SOCKET createServerSocket
 * @param :
 *                   1.[IN] int af
 *                   2.[IN] int type
@@ -79,7 +81,7 @@ SOCKET HelloServer::createServerSocket(
 
 /*------------------------------------------------------------------------------------------------------
 * use socket api to create a ipv4 and tcp protocol socket
-* @function��static SOCKET createServerSocket
+* @function: static SOCKET createServerSocket
 * @param :
 *                   1.[IN] SOCKET  serverSocket
 *                   2.[IN] int backlog
@@ -93,7 +95,7 @@ int HelloServer::startListeningConnection(
 
 /*------------------------------------------------------------------------------------------------------
 * use accept function to accept connection which come from client
-* @function��static bool acceptClientConnection
+* @function: static bool acceptClientConnection
 * @param :
 *                   1.[IN] SOCKET  serverSocket
 *                   3.[OUT] SOCKET *clientSocket,
@@ -123,8 +125,42 @@ bool HelloServer::acceptClientConnection(
 }
 
 /*------------------------------------------------------------------------------------------------------
+* init IO Multiplexing
+* @function: void initServerIOMultiplexing
+*------------------------------------------------------------------------------------------------------*/
+void HelloServer::initServerIOMultiplexing()
+{
+          FD_ZERO(&m_fdread);                                                              //clean fd_read
+          FD_ZERO(&m_fdwrite);                                                             //clean fd_write
+          FD_ZERO(&m_fdexception);                                                      //clean fd_exception
+
+          FD_SET(this->m_server_socket, &m_fdread);                           //Insert Server Socket into fd_read
+          FD_SET(this->m_server_socket, &m_fdwrite);                          //Insert Server Socket into fd_write
+          FD_SET(this->m_server_socket, &m_fdexception);                  //Insert Server Socket into fd_exception
+
+          /*add all the client socket in to the fd_read*/
+          for (auto ib = this->m_clientVec.begin(); ib != this->m_clientVec.end(); ib++) {
+                    FD_SET(ib->m_clientSocket, &m_fdread);
+          }
+}
+
+/*------------------------------------------------------------------------------------------------------
+* use select system call to setup model
+* @function: bool initServerSelectModel
+* @retvalue: bool
+*------------------------------------------------------------------------------------------------------*/
+bool HelloServer::initServerSelectModel()
+{
+          return (::select(static_cast<int>(this->m_server_socket + 1),
+                    &m_fdread,
+                    &m_fdwrite,
+                    &m_fdexception,
+                    reinterpret_cast<const timeval*>(&this->m_timeoutSetting)) < 0);                  //Select Task Ended!
+}
+
+/*------------------------------------------------------------------------------------------------------
 * init server ip address and port and bind it with server socket
-* @function��void initServerAddressBinding
+* @function: void initServerAddressBinding
 * @implementation: create server socket and bind ip address info
 * @param : 1.[IN] unsigned long _ipAddr
                     2.[IN] unsigned short _port
@@ -161,7 +197,7 @@ void HelloServer::initServerAddressBinding(
 
 /*------------------------------------------------------------------------------------------------------
 * init server ip address and port and bind it with server socket
-* @function��void initServerAddressBinding
+* @function: void initServerAddressBinding
 * @param : unsigned short _port
 *------------------------------------------------------------------------------------------------------*/
 void HelloServer::startServerListening(int backlog)
@@ -176,7 +212,7 @@ void HelloServer::startServerListening(int backlog)
 }
 
 /*------------------------------------------------------------------------------------------------------
-* @function��void sendDataToClient
+* @function: void sendDataToClient
 * @param : 
 *                  1.[IN]   SOCKET& _clientSocket,
                     2.[IN]  T* _szSendBuf,
@@ -197,7 +233,7 @@ void  HelloServer::sendDataToClient(
 }
 
 /*------------------------------------------------------------------------------------------------------
-* @function��void reciveDataFromClient
+* @function: void reciveDataFromClient
 * @param :
                     1. [IN]  SOCKET&  _clientSocket,
                     1. [OUT]  T* _szRecvBuf,
@@ -221,28 +257,13 @@ int HelloServer::reciveDataFromClient(
 void HelloServer::serverMainFunction()
 {
           while (1) {
-                    FD_ZERO(&m_fdread);                                                              //clean fd_read
-                    FD_ZERO(&m_fdwrite);                                                             //clean fd_write
-                    FD_ZERO(&m_fdexception);                                                      //clean fd_exception
-
-                    FD_SET(this->m_server_socket, &m_fdread);                           //Insert Server Socket into fd_read
-                    FD_SET(this->m_server_socket, &m_fdwrite);                          //Insert Server Socket into fd_write
-                    FD_SET(this->m_server_socket, &m_fdexception);                  //Insert Server Socket into fd_exception
-
-                    /*add all the client socket in to the fd_read*/
-                    for (auto ib = this->m_clientVec.begin(); ib != this->m_clientVec.end(); ib++) {
-                              FD_SET(ib->m_clientSocket, &m_fdread);
-                    }
-
-                    if (::select(static_cast<int>(this->m_server_socket + 1),
-                              &m_fdread,
-                              &m_fdwrite,
-                              &m_fdexception,
-                              reinterpret_cast<const timeval*>(&this->m_timeoutSetting)) < 0) {     //Select Task Ended!
+                    this->initServerIOMultiplexing();
+                    if (this->initServerSelectModel()) {
                               break;
                     }
+
                     /*SERVER ACCELERATION PROPOSESD*/
-                    if (this->m_fdread.fd_count) {                                         //in fd_read array, no socket has been found!!               
+                    if (!this->m_fdread.fd_count) {                                         //in fd_read array, no socket has been found!!               
 
                     }
 
@@ -259,37 +280,36 @@ void HelloServer::serverMainFunction()
                               this->m_clientVec.emplace_back(_clientSocket, _clientAddress);
                     }
 
-                    /*Currently,there is no any client is the container, so there is no reason to excute following instructions */
-                    if (!this->m_clientVec.size()) {
-                              for (std::vector<_ClientAddr>::iterator ib = this->m_clientVec.begin(); ib != this->m_clientVec.end();) {
-                                     /*
-                                     *Entering main logic layer std::vector<_ClientAddr>::iterator as an input to the main system
-                                     * retvalue: when functionlogicLayer return a value of false it means [CLIENT EXIT MANUALLY]]
-                                     */
-                                        if (!this->funtionLogicLayer(ib)) {
+                    //[POTIENTAL BUG HERE!]: why _clientaddr's dtor was deployed
+                    for (std::vector<_ClientAddr>::iterator ib = this->m_clientVec.begin(); ib != this->m_clientVec.end();) {
+                              /*
+                              *Entering main logic layer std::vector<_ClientAddr>::iterator as an input to the main system
+                              * retvalue: when functionlogicLayer return a value of false it means [CLIENT EXIT MANUALLY]
+                              * then you have to remove it from the container
+                              */
+                              if (!this->functionLogicLayer(ib)) {                                                                   
 
-                                                  /*There is a kind of sceniro which there is only one client who still remainning connection to the server*/
-                                                  if (ib == this->m_clientVec.end()) {		             //Erase Current unavailable client's socket
-                                                            this->m_clientVec.erase(ib);
-                                                            break;
-                                                  }
-                                                  else {
-                                                            ib = this->m_clientVec.erase(ib);
-                                                  }
-                                                  ib++;
+                                        /*
+                                        *There is a kind of sceniro which there is only one client who still remainning connection to the server
+                                        */        
+                                        ib = this->m_clientVec.erase(ib);                                                             //Erase Current unavailable client's socket 
+                                        if (ib == this->m_clientVec.end() || this->m_clientVec.size() <= 1 ) {	 //judge current container status
+                                                  break;
                                         }
                               }
+                              ib++;
                     }
+                    this->functionServerLayer();                                                                                        //process server's own business
           }
 }
 
 /*------------------------------------------------------------------------------------------------------
-* @function��void funtionLogicLayer
+* @function: void funtionLogicLayer
 * @param: [IN] std::vector<_ClientAddr>::iterator
 * @description: process the request from clients
 * @retvalue : bool
 *------------------------------------------------------------------------------------------------------*/
-bool HelloServer::funtionLogicLayer(IN std::vector<_ClientAddr>::iterator  _clientSocket)
+bool HelloServer::functionLogicLayer(IN std::vector<_ClientAddr>::iterator  _clientSocket)
 {
           _PackageHeader packageHeader;
           int  recvStatus = this->reciveDataFromClient(      // record recv data status
@@ -298,6 +318,11 @@ bool HelloServer::funtionLogicLayer(IN std::vector<_ClientAddr>::iterator  _clie
                     sizeof(_PackageHeader)
           ); 
           if (recvStatus <= 0) {                                              //Client Exit Manually 
+                    std::cout << "[CLIENT COMMAND MESSAGE] FROM IP Address = "
+                              << inet_ntoa(_clientSocket->m_clientAddr.sin_addr)
+                              << ",Port=" << _clientSocket->m_clientAddr.sin_port << std::endl
+                              << "Client Exit Manually!" << std::endl;
+
                     return false;
           }
          
@@ -316,9 +341,7 @@ bool HelloServer::funtionLogicLayer(IN std::vector<_ClientAddr>::iterator  _clie
                     );
                     loginData.loginStatus = true;                                                                               //set login status as true
 
-                    std::cout << "[CLIENT LOGIN MESSAGE] FROM IP Address = "
-                              << inet_ntoa(_clientSocket->m_clientAddr.sin_addr)
-                              << ",Port=" << _clientSocket->m_clientAddr.sin_port << std::endl
+                    std::cout << "[CLIENT LOGIN MESSAGE] " << std::endl
                               << "->UserName= " << loginData.userName << std::endl
                               << "->UserPassword= " << loginData.userPassword << std::endl;
 
@@ -332,9 +355,7 @@ bool HelloServer::funtionLogicLayer(IN std::vector<_ClientAddr>::iterator  _clie
                               packageHeader._packageLength - sizeof(_PackageHeader)
                     );
                     logoutData.logoutStatus = true;                                                                               //set logout status as true
-                    std::cout << "[CLIENT LOGOUT MESSAGE] FROM IP Address = "
-                              << inet_ntoa(_clientSocket->m_clientAddr.sin_addr)
-                              << ",Port=" << _clientSocket->m_clientAddr.sin_port << std::endl
+                    std::cout << "[CLIENT LOGOUT MESSAGE] " << std::endl
                               << "->UserName= " << logoutData.userName << std::endl;
 
                     this->sendDataToClient(_clientSocket->m_clientSocket, &logoutData, sizeof(logoutData));
@@ -342,14 +363,23 @@ bool HelloServer::funtionLogicLayer(IN std::vector<_ClientAddr>::iterator  _clie
           else if (packageHeader._packageCmd == CMD_SYSTEM) {
                     _SystemData systemData("Server System", "100");
 
-                    std::cout << "[CLIENT SYSTEM MESSAGE] FROM IP Address = "
-                              << inet_ntoa(_clientSocket->m_clientAddr.sin_addr)
-                              << ",Port=" << _clientSocket->m_clientAddr.sin_port << std::endl;
+                    std::cout << "[CLIENT SYSTEM MESSAGE] " << std::endl;
 
                     this->sendDataToClient(_clientSocket->m_clientSocket, &systemData, sizeof(_SystemData));
           }
           if (recvStatus <= 0) {                                              //Client Exit Manually
                     return false;
           }  
+          return true;
+}
+
+/*------------------------------------------------------------------------------------------------------
+* @function:  functionServerLayer
+* @description: process the server's own business
+* @retvalue : bool
+*------------------------------------------------------------------------------------------------------*/
+bool HelloServer::functionServerLayer()
+{
+          std::cout << "handle server's own business!" << std::endl;
           return true;
 }

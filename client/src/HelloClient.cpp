@@ -54,12 +54,9 @@ void HelloClient::connectServer(
           this->m_server_address.sin_addr.s_addr = _ipAddr;                            //IP address(LINUX)   
 #endif // _WINDOWS
 
-          int connectStatus = ::connect(
-                    this->m_client_socket,
+          if (::connect(this->m_client_socket,
                     reinterpret_cast<sockaddr*>(&this->m_server_address),
-                    sizeof(SOCKADDR_IN)
-          );
-          if (connectStatus == SOCKET_ERROR) {
+                    sizeof(SOCKADDR_IN)) == SOCKET_ERROR) {
                     return;
           }
 }
@@ -67,16 +64,18 @@ void HelloClient::connectServer(
 /*------------------------------------------------------------------------------------------------------
 * @function£ºvoid sendDataToServer
 * @param :
-                    1.[IN] T*_szBuf
-                    2.[IN] int _szBufferSize
+*                  1.[IN] SOCKET& _clientSocket,
+                    2.[IN] T*_szSendBuf
+                    3.[IN] int _szBufferSize
 *------------------------------------------------------------------------------------------------------*/
 template<typename T>
 void HelloClient::sendDataToServer(
+          IN  SOCKET& _clientSocket,
           IN T* _szSendBuf,
           IN int _szBufferSize)
 {
           ::send(
-                    this->m_client_socket,
+                    _clientSocket,
                     reinterpret_cast<const char*>(_szSendBuf),
                     _szBufferSize,
                     0
@@ -85,17 +84,19 @@ void HelloClient::sendDataToServer(
 
 /*------------------------------------------------------------------------------------------------------
 * @function£ºvoid reciveDataFromServer
-* @param : 
-                    1. [OUT] T* _szRecvBuf 
-                    2. [IN OUT] int _szBufferSize
+* @param :
+*                  1. IN  SOCKET& _clientSocket
+                    2. [OUT] T* _szRecvBuf
+                    3. [IN OUT] int _szBufferSize
 *------------------------------------------------------------------------------------------------------*/
-template<typename T>
-void HelloClient::reciveDataFromServer(
+template<typename T> 
+int HelloClient::reciveDataFromServer(
+          IN  SOCKET& _clientSocket,
           OUT T* _szRecvBuf,
-          IN OUT int _szBufferSize)
+          IN int _szBufferSize)
 {
-          ::recv(
-                    this->m_client_socket, 
+          return ::recv(
+                    _clientSocket,
                     reinterpret_cast<char*>(_szRecvBuf),
                     _szBufferSize,
                     0
@@ -107,48 +108,94 @@ void HelloClient::reciveDataFromServer(
 *------------------------------------------------------------------------------------------------------*/
 void HelloClient::clientMainFunction()
 {
-          while (true) {
-                    char _Message[256]{ 0 };
-                    std::cin.getline(_Message, 256);
-                    if (!strcmp(_Message, "exit")) {
-                              std::cout << "[CLIENT EXIT] Client Exit Manually" << std::endl;
+          while (true) 
+          {
+                    this->initClientIOMultiplexing();
+                    this->initClientSelectModel();
+                    if (this->initClientSelectModel()) {
                               break;
                     }
-                    else if (!strcmp(_Message, "login")) {
-                              _LoginData loginData("client-loopback404", "1234567abc");
-                              _LoginData recvLoginData;
+                    /*CLIENT ACCELERATION PROPOSESD*/
+                    if (!this->m_fdread.fd_count) {                                         //in fd_read array, no socket has been found!!               
 
-                              this->sendDataToServer(&loginData, sizeof(loginData));
-
-                              this->reciveDataFromServer(&recvLoginData, sizeof(_LoginData));
-                              if (recvLoginData.loginStatus) {
-                                        std::cout << "[CLIENT LOGIN INFO] Message Info: " << std::endl
-                                                  << "->userName = " << recvLoginData.userName << std::endl
-                                                  << "->userPassword = " << recvLoginData.userPassword << std::endl;
+                    }
+                    if (FD_ISSET(this->m_client_socket, &this->m_fdread)) {
+                              FD_CLR(this->m_client_socket, &this->m_fdread);
+                              if (!this->functionLogicLayer()) {                          //Client Exit Manually
+                                        break;
                               }
-                    }
-                    else if (!strcmp(_Message, "logout")) {
-                              _LogoutData logoutData("client-loopback404");
-                              _LogoutData recvLogoutData;
-                              this->sendDataToServer(&logoutData, sizeof(logoutData));
-
-                              this->reciveDataFromServer(&recvLogoutData, sizeof(_LogoutData));
-                              if (recvLogoutData.logoutStatus) {
-                                        std::cout << "[CLIENT LOGOUT INFO] Message Info: " << std::endl
-                                                  << "->userName = " << recvLogoutData.userName << std::endl;
-                              }
-                    }
-                    else if (!strcmp(_Message, "system")) {
-                              _SystemData systemData;
-                              this->sendDataToServer(&systemData, sizeof(_PackageHeader));
-
-                              this->reciveDataFromServer(&systemData, sizeof(_SystemData));
-                              std::cout << "[SERVER INFO] Message Info: " << std::endl
-                                        << "->serverName = " << systemData.serverName << std::endl
-                                        << "->serverRunTime = " << systemData.serverRunTime << std::endl;
-                    }
-                    else {
-                              std::cout << "[CLIENT ERROR INFO] Invalid Command Input!" << std::endl;
                     }
           }
+}
+
+/*------------------------------------------------------------------------------------------------------
+* init IO Multiplexing
+* @function: void initClientIOMultiplexing
+* @description: in client, we only need to deal with client socket 
+*------------------------------------------------------------------------------------------------------*/
+void HelloClient::initClientIOMultiplexing()
+{
+          FD_ZERO(&m_fdread);                                                              //clean fd_read
+          FD_SET(this->m_client_socket, &m_fdread);                           //Insert Server Socket into fd_read
+}
+
+/*------------------------------------------------------------------------------------------------------
+* @function£ºbool initClientSelectModel
+*------------------------------------------------------------------------------------------------------*/
+bool HelloClient::initClientSelectModel()
+{
+          return (::select(static_cast<int>(this->m_client_socket + 1),
+                    &m_fdread,
+                    nullptr,
+                    nullptr,
+                    reinterpret_cast<const timeval*>(&this->m_timeoutSetting)) < 0);                  //Select Task Ended!
+}
+
+/*------------------------------------------------------------------------------------------------------
+* @function£ºbool functionLogicLayer
+*------------------------------------------------------------------------------------------------------*/
+bool HelloClient::functionLogicLayer()
+{
+          char _Message[256]{ 0 };
+          std::cin.getline(_Message, 256);
+          if (!strcmp(_Message, "exit")) {
+                    std::cout << "[CLIENT EXIT] Client Exit Manually" << std::endl;
+                    return false;
+          }
+          else if (!strcmp(_Message, "login")) {
+                    _LoginData loginData("client-loopback404", "1234567abc");
+                    _LoginData recvLoginData;
+
+                    this->sendDataToServer(this->m_client_socket, &loginData, sizeof(loginData));
+
+                    this->reciveDataFromServer(this->m_client_socket, &recvLoginData, sizeof(_LoginData));
+                    if (recvLoginData.loginStatus) {
+                              std::cout << "[CLIENT LOGIN INFO] Message Info: " << std::endl
+                                        << "->userName = " << recvLoginData.userName << std::endl
+                                        << "->userPassword = " << recvLoginData.userPassword << std::endl;
+                    }
+          }
+          else if (!strcmp(_Message, "logout")) {
+                    _LogoutData logoutData("client-loopback404");
+                    _LogoutData recvLogoutData;
+                    this->sendDataToServer(this->m_client_socket, &logoutData, sizeof(logoutData));
+
+                    this->reciveDataFromServer(this->m_client_socket, &recvLogoutData, sizeof(_LogoutData));
+                    if (recvLogoutData.logoutStatus) {
+                              std::cout << "[CLIENT LOGOUT INFO] Message Info: " << std::endl
+                                        << "->userName = " << recvLogoutData.userName << std::endl;
+                    }
+          }
+          else if (!strcmp(_Message, "system")) {
+                    _SystemData systemData;
+                    this->sendDataToServer(this->m_client_socket, &systemData, sizeof(_PackageHeader));
+                    this->reciveDataFromServer(this->m_client_socket, &systemData, sizeof(_SystemData));
+                    std::cout << "[SERVER INFO] Message Info: " << std::endl
+                              << "->serverName = " << systemData.serverName << std::endl
+                              << "->serverRunTime = " << systemData.serverRunTime << std::endl;
+          }
+          else {
+                    std::cout << "[CLIENT ERROR INFO] Invalid Command Input!" << std::endl;
+          }
+          return true;
 }

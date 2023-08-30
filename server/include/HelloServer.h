@@ -46,21 +46,18 @@ public:
           );
 
 public:
-          void startServerListening(int backlog = SOMAXCONN);
           template<typename T> void sendDataToClient(
                     IN  SOCKET& _clientSocket,
                     IN T* _szSendBuf, 
-                    IN int _szBufferSize);
+                    IN int _szBufferSize
+          );
 
           template<typename T> int reciveDataFromClient(
                     IN  SOCKET& _clientSocket,
                     OUT T* _szRecvBuf,
                     IN int _szBufferSize
           );
-
-          bool funtionLogicLayer(IN std::vector<_ClientAddr>::iterator _clientSocket);
-
-
+          void startServerListening(int backlog = SOMAXCONN);
           void serverMainFunction();
 
 private:
@@ -69,10 +66,12 @@ private:
                     unsigned short _port
           );
 
+          void initServerIOMultiplexing();
+          bool initServerSelectModel();
+          bool functionLogicLayer(IN std::vector<_ClientAddr>::iterator _clientSocket);
+          bool functionServerLayer();
+
 private:
-#ifdef _WINDOWS
-          WSADATA m_wsadata;
-#endif // _WINDOWS 
           fd_set m_fdread;
           fd_set m_fdwrite;
           fd_set m_fdexception;
@@ -81,4 +80,8 @@ private:
           SOCKET m_server_socket;                           //server listening socket
           sockaddr_in m_server_address;
           std::vector<_ClientAddr> m_clientVec;
+
+#ifdef _WINDOWS
+          WSADATA m_wsadata;
+#endif // _WINDOWS 
 };
