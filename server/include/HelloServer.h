@@ -30,7 +30,6 @@ public:
           virtual ~HelloServer();
 
 public:
-
           static SOCKET createServerSocket(
                     IN int af = AF_INET,
                     IN int type = SOCK_STREAM,

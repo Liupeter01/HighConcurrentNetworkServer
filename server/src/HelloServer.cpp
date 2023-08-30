@@ -256,10 +256,10 @@ void HelloServer::serverMainFunction()
                                         &_clientAddress
                               );
                               this->m_clientVec.emplace_back(_clientSocket, _clientAddress);
-                              for (auto ib = this->m_clientVec.begin(); ib != this->m_clientVec.end(); ib++) {
-                                        if (!this->funtionLogicLayer(ib)) {                             //Client Exit Manually                  
-                                                  this->m_clientVec.erase(ib);                        //Erase current unavailable client's socket
-                                        }
+                    }
+                    for (auto ib = this->m_clientVec.begin(); ib != this->m_clientVec.end(); ib++) {
+                              if (!this->funtionLogicLayer(ib)) {                             //Client Exit Manually                  
+                                        this->m_clientVec.erase(ib);                        //Erase current unavailable client's socket
                               }
                     }
           }
