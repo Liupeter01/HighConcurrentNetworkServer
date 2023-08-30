@@ -221,34 +221,35 @@ int HelloServer::reciveDataFromClient(
 void HelloServer::serverMainFunction()
 {
           while (1) {
-                    fd_set fd_read;
-                    fd_set fd_write;
-                    fd_set fd_exception;
+                    FD_ZERO(&m_fdread);                                                              //clean fd_read
+                    FD_ZERO(&m_fdwrite);                                                             //clean fd_write
+                    FD_ZERO(&m_fdexception);                                                      //clean fd_exception
 
-                    FD_ZERO(&fd_read);                                                              //clean fd_read
-                    FD_ZERO(&fd_write);                                                             //clean fd_write
-                    FD_ZERO(&fd_exception);                                                      //clean fd_exception
-
-                    FD_SET(this->m_server_socket, &fd_read);                           //Insert Server Socket into fd_read
-                    FD_SET(this->m_server_socket, &fd_write);                          //Insert Server Socket into fd_write
-                    FD_SET(this->m_server_socket, &fd_exception);                  //Insert Server Socket into fd_exception
+                    FD_SET(this->m_server_socket, &m_fdread);                           //Insert Server Socket into fd_read
+                    FD_SET(this->m_server_socket, &m_fdwrite);                          //Insert Server Socket into fd_write
+                    FD_SET(this->m_server_socket, &m_fdexception);                  //Insert Server Socket into fd_exception
 
                     /*add all the client socket in to the fd_read*/
                     for (auto ib = this->m_clientVec.begin(); ib != this->m_clientVec.end(); ib++) {
-                              FD_SET(ib->m_clientSocket, &fd_read);           
+                              FD_SET(ib->m_clientSocket, &m_fdread);
                     }
 
                     if (::select(static_cast<int>(this->m_server_socket + 1),
-                              &fd_read,
-                              &fd_write,
-                              &fd_exception,
-                              reinterpret_cast<const timeval*>(NULL)) < 0) {     //Select Task Ended!
+                              &m_fdread,
+                              &m_fdwrite,
+                              &m_fdexception,
+                              reinterpret_cast<const timeval*>(&this->m_timeoutSetting)) < 0) {     //Select Task Ended!
                               break;
                     }
-                    if (FD_ISSET(this->m_server_socket, &fd_read)) {    //Detect client message input signal
+                    /*SERVER ACCELERATION PROPOSESD*/
+                    if (this->m_fdread.fd_count) {                                         //in fd_read array, no socket has been found!!               
+                    
+                    }
+
+                    if (FD_ISSET(this->m_server_socket, &m_fdread)) {    //Detect client message input signal
                               SOCKET _clientSocket;                                       //the temp variable to record client's socket
                               sockaddr_in _clientAddress;                                 //the temp variable to record client's address                                     
-                              FD_CLR(this->m_server_socket, &fd_read);      //delete client message signal
+                              FD_CLR(this->m_server_socket, &m_fdread);      //delete client message signal
 
                               this->acceptClientConnection(                               //
                                         this->m_server_socket,

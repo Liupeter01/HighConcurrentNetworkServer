@@ -73,8 +73,12 @@ private:
 #ifdef _WINDOWS
           WSADATA m_wsadata;
 #endif // _WINDOWS 
+          fd_set m_fdread;
+          fd_set m_fdwrite;
+          fd_set m_fdexception;
+          timeval m_timeoutSetting{ 0/*0 s*/, 0 /*0 ms*/ };
+
           SOCKET m_server_socket;                           //server listening socket
           sockaddr_in m_server_address;
-
           std::vector<_ClientAddr> m_clientVec;
 };
