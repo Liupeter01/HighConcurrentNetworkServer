@@ -48,6 +48,7 @@ private:
           void initClientIOMultiplexing();
           bool initClientSelectModel();
           bool functionLogicLayer();
+          bool functionClientLayer();
 
 private:
           fd_set m_fdread;
