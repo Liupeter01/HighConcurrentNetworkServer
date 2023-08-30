@@ -9,9 +9,17 @@
 #endif
 
 #include "DataPackage.h"
-
 #include<iostream>
 #include<cassert>
+#include<vector>
+
+struct _ClientAddr{
+          _ClientAddr();
+          _ClientAddr(SOCKET _socket, sockaddr_in _addr);
+          virtual ~_ClientAddr();
+          SOCKET m_clientSocket;
+          sockaddr_in m_clientAddr;
+};
 
 class HelloServer
 {
@@ -32,23 +40,31 @@ public:
                     IN SOCKET serverSocket,
                     IN int backlog = SOMAXCONN
           );
-          static SOCKET acceptClientConnection(
+          static bool acceptClientConnection(
                     IN SOCKET serverSocket,
-                    IN OUT SOCKADDR_IN *_clientAddr
+                    OUT SOCKET* clientSocket,
+                    OUT SOCKADDR_IN* _clientAddr
           );
 
 public:
           void startServerListening(int backlog = SOMAXCONN);
+          template<typename T> void sendDataToClient(
+                    IN  SOCKET& _clientSocket,
+                    IN T* _szSendBuf, 
+                    IN int _szBufferSize);
+
+          template<typename T> int reciveDataFromClient(
+                    IN  SOCKET& _clientSocket,
+                    OUT T* _szRecvBuf,
+                    IN int _szBufferSize
+          );
+
+          bool funtionLogicLayer(IN std::vector<_ClientAddr>::iterator _clientSocket);
+
+
           void serverMainFunction();
 
-          template<typename T>
-          void sendDataToClient(IN T* _szSendBuf, IN int _szBufferSize);
-
-          template<typename T>
-          int reciveDataFromClient(OUT T* _szRecvBuf, IN int _szBufferSize);
-
 private:
-          void serverAcceptConnetion();
           void initServerAddressBinding(
                     unsigned long _ipAddr,
                     unsigned short _port
@@ -61,6 +77,5 @@ private:
           SOCKET m_server_socket;                           //server listening socket
           sockaddr_in m_server_address;
 
-          SOCKET m_client_connect_socket;             //client connection socket
-          sockaddr_in m_client_connect_address;
+          std::vector<_ClientAddr> m_clientVec;
 };
