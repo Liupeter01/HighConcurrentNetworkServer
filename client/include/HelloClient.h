@@ -8,10 +8,11 @@
 #pragma comment(lib,"ws2_32.lib")
 #endif
 
-#include "DataPackage.h"
-
+#include<DataPackage.h>
 #include<iostream>
 #include<cassert>
+#include<future>
+#include<thread>
 
 class HelloClient
 {
@@ -32,18 +33,40 @@ public:
                     IN unsigned short _ipPort
           );
 
-          template<typename T>
-          void sendDataToServer(IN T* _szSendBuf, IN int _szBufferSize);
+          template<typename T> void sendDataToServer(
+                    IN  SOCKET& _clientSocket,
+                    IN T* _szSendBuf,
+                    IN int _szBufferSize);
 
-          template<typename T>
-          void reciveDataFromServer(OUT T* _szRecvBuf, IN OUT int _szBufferSize);
+          template<typename T> int reciveDataFromServer(
+                    IN  SOCKET& _clientSocket,
+                    OUT T* _szRecvBuf,
+                    IN int _szBufferSize
+          );
 
           void clientMainFunction();
 
 private:
+          void initClientIOMultiplexing();
+          bool initClientSelectModel();
+
+          void functionClientInput(IN SOCKET& _client);
+          bool functionLogicLayer();
+
+private:
+          /*client interface thread*/
+          std::promise<bool> m_interfacePromise;
+          std::shared_future<bool> m_interfaceFuture = this->m_interfacePromise.get_future();
+
+          /*select network model*/
+          fd_set m_fdread;
+          timeval m_timeoutSetting{ 0/*0 s*/, 0 /*0 ms*/ };
+
+          /*client socket and server address*/
+          SOCKET m_client_socket;                           //client connection socket
+          sockaddr_in m_server_address;
+
 #ifdef _WINDOWS
           WSADATA m_wsadata;
 #endif // _WINDOWS 
-          SOCKET m_client_socket;                           //client connection socket
-          sockaddr_in m_server_address;
 };
