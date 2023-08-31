@@ -1,19 +1,36 @@
 #pragma once
-#define _WINDOWS
-#ifdef _WINDOWS
-#define _WINSOCK_DEPRECATED_NO_WARNINGS
-#define WIN32_LEAN_AND_MEAN
-#include<Windows.h>
-#include<WinSock2.h>
-#pragma comment(lib,"ws2_32.lib")
-#endif
-
-#include "DataPackage.h"
+#include<DataPackage.h>
 #include<iostream>
 #include<cassert>
 #include<vector>
 #include<future>
 #include<thread>
+
+#if _WIN32             //Windows Enviorment
+#define _WINSOCK_DEPRECATED_NO_WARNINGS
+#define WIN32_LEAN_AND_MEAN
+#include<Windows.h>
+#include<WinSock2.h>
+#pragma comment(lib,"ws2_32.lib")
+
+#else                                   //Unix/Linux/Macos Enviorment
+
+#include<unistd.h>
+#include<arpa/inet.h>
+#include<sys/socket.h>
+
+/* Network Socket Def*/
+typedef uint64_t UINT_PTR, * PUINT_PTR;
+typedef UINT_PTR SOCKET;
+typedef struct timeval timeval;
+typedef sockaddr_in SOCKADDR_IN;
+#define INVALID_SOCKET static_cast<SOCKET>(~0)
+#define SOCKET_ERROR (-1)
+
+/*param sign*/
+#define IN          //param input sign
+#define OUT         //param output sign
+#endif
 
 struct _ClientAddr{
           _ClientAddr();
@@ -70,6 +87,7 @@ private:
 
           void initServerIOMultiplexing();
           bool initServerSelectModel();
+          int getlargestSocketValue();
           bool functionLogicLayer(IN std::vector<_ClientAddr>::iterator _clientSocket);
           bool functionServerLayer();
 
@@ -83,7 +101,7 @@ private:
           sockaddr_in m_server_address;
           std::vector<_ClientAddr> m_clientVec;
 
-#ifdef _WINDOWS
+#if _WIN32 
           WSADATA m_wsadata;
 #endif // _WINDOWS 
 };

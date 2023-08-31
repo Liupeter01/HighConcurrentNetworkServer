@@ -2,9 +2,9 @@
 
 HelloClient::HelloClient()
 {
-#ifdef _WINDOWS
+#if _WIN32                          //Windows Enviormen
           WSAStartup(MAKEWORD(2, 2), &m_wsadata);
-#endif // _WINDOWS
+#endif
           this->m_client_socket = this->createClientSocket();
           if (this->m_client_socket == INVALID_SOCKET) {
                     return;
@@ -13,14 +13,21 @@ HelloClient::HelloClient()
 
 HelloClient::~HelloClient()
 {
-#ifdef _WINDOWS
-          WSACleanup();
-#endif // _WINDOWS
+#if _WIN32                                                   //Windows Enviorment
+          ::shutdown(this->m_client_socket, SD_BOTH); //disconnect I/O
+          ::closesocket(this->m_client_socket);     //release socket completely!! 
+          ::WSACleanup();
+
+#else                                                                  //Unix/Linux/Macos Enviorment
+          ::shutdown(this->m_client_socket, SHUT_RDWR);//disconnect I/O and keep recv buffer
+          close(this->m_client_socket);                //release socket completely!! 
+
+#endif
 }
 
 /*------------------------------------------------------------------------------------------------------
 * use socket api to create a ipv4 and tcp protocol socket 
-* @function£ºstatic SOCKET createClientSocket
+* @function:static SOCKET createClientSocket
 * @param :
 *                   1.[IN] int af
 *                   2.[IN] int type
@@ -36,7 +43,7 @@ SOCKET HelloClient::createClientSocket(
 
 /*------------------------------------------------------------------------------------------------------
 * user should input server's ip:port info to establish the connection
-* @function£ºvoid connectServer
+* @function:void connectServer
 * @param : 
 *                   1.[IN] unsigned long _ipAddr
 *                   2.[IN] unsigned short _ipPort
@@ -48,11 +55,12 @@ void HelloClient::connectServer(
 {
           this->m_server_address.sin_family = AF_INET;                                    //IPV4
           this->m_server_address.sin_port = htons(_ipPort);                                     //Port number
-#ifdef _WINDOWS
+
+#if _WIN32    //Windows Enviorment
           this->m_server_address.sin_addr.S_un.S_addr = _ipAddr;                 //IP address(Windows)   
-#else
-          this->m_server_address.sin_addr.s_addr = _ipAddr;                            //IP address(LINUX)   
-#endif // _WINDOWS
+#else               /* Unix/Linux/Macos Enviorment*/
+          this->m_server_address.sin_addr.s_addr = _ipAddr;                            //IP address(LINUX) 
+#endif
 
           if (::connect(this->m_client_socket,
                     reinterpret_cast<sockaddr*>(&this->m_server_address),
@@ -62,7 +70,7 @@ void HelloClient::connectServer(
 }
 
 /*------------------------------------------------------------------------------------------------------
-* @function£ºvoid sendDataToServer
+* @function:void sendDataToServer
 * @param :
 *                  1.[IN] SOCKET& _clientSocket,
                     2.[IN] T*_szSendBuf
@@ -83,7 +91,7 @@ void HelloClient::sendDataToServer(
 }
 
 /*------------------------------------------------------------------------------------------------------
-* @function£ºvoid reciveDataFromServer
+* @function:void reciveDataFromServer
 * @param :
 *                  1. IN  SOCKET& _clientSocket
                     2. [OUT] T* _szRecvBuf
@@ -106,18 +114,21 @@ int HelloClient::reciveDataFromServer(
 /*------------------------------------------------------------------------------------------------------
 *  Currently, clientMainFunction excute on a new thread(std::thread m_clientInterface)
 * @function: void functionClientInput
-* @param: [IN] SOCKET & _client
+* @param: 
+                    1.[IN] SOCKET & _client
+                    2.[IN OUT]  std::promise<bool> &interfacePromise
 *------------------------------------------------------------------------------------------------------*/
-void HelloClient::functionClientInput(IN SOCKET& _client)
+void HelloClient::functionClientInput(
+          IN SOCKET& _client,
+          IN OUT  std::promise<bool> &interfacePromise)
 {
-          m_interfacePromise.set_value(true);                                                             //set symphore default value
           while (true) {
                     char _Message[256]{ 0 };
                     std::cin.getline(_Message, 256);
                     if (!strcmp(_Message, "exit")) {
                               std::cout << "[CLIENT EXIT] Client Exit Manually" << std::endl;
-                              this->m_interfacePromise.set_value(false);                            //set symphore value to inform other thread
-                              break;
+                              interfacePromise.set_value(false);                            //set symphore value to inform other thread
+                              return;
                     }
                     else if (!strcmp(_Message, "login")) {
                               _LoginData loginData("client-loopback404", "1234567abc");
@@ -138,7 +149,7 @@ void HelloClient::functionClientInput(IN SOCKET& _client)
 }
 
 /*------------------------------------------------------------------------------------------------------
-* @function£ºbool functionLogicLayer
+* @function:bool functionLogicLayer
 *------------------------------------------------------------------------------------------------------*/
 bool HelloClient::functionLogicLayer()
 {
@@ -190,14 +201,15 @@ bool HelloClient::functionLogicLayer()
 
 /*------------------------------------------------------------------------------------------------------
 * Currently, clientMainFunction only excute on the main Thread
-* @function£ºvoid clientMainFunction
+* @function:void clientMainFunction
 *------------------------------------------------------------------------------------------------------*/
 void HelloClient::clientMainFunction()
 {
           auto res = std::async(                                                                              //shared_future requires std::async to startup
-                    std::launch::async, 
-                    &HelloClient::functionClientInput, this, 
-                    std::ref(m_client_socket)
+                    std::launch::async,
+                    &HelloClient::functionClientInput, this,
+                    std::ref(this->m_client_socket),
+                    std::ref(this->m_interfacePromise)
           );
           while (this->m_interfaceFuture.get())
           {
@@ -205,9 +217,13 @@ void HelloClient::clientMainFunction()
                     if (this->initClientSelectModel()) {
                               break;
                     }
-                    /*CLIENT ACCELERATION PROPOSESD*/
+
+#if _WIN32     
+                    /*CLIENT ACCELERATION PROPOSESD (Windows Enviorment only!)*/
                     if (!this->m_fdread.fd_count) {                                         //in fd_read array, no socket has been found!!               
                     }
+#endif
+
                     if (FD_ISSET(this->m_client_socket, &this->m_fdread)) {
                               FD_CLR(this->m_client_socket, &this->m_fdread);
                               if (!this->functionLogicLayer()) {                          //Client Exit Manually
@@ -237,5 +253,5 @@ bool HelloClient::initClientSelectModel()
                     &m_fdread,
                     nullptr,
                     nullptr,
-                    reinterpret_cast<const timeval*>(&this->m_timeoutSetting)) < 0);                  //Select Task Ended!
+                    &this->m_timeoutSetting) < 0);                  //Select Task Ended!
 }

@@ -1,18 +1,35 @@
 #pragma once
-#define _WINDOWS
-#ifdef _WINDOWS
-#define WIN32_LEAN_AND_MEAN
-#define _WINSOCK_DEPRECATED_NO_WARNINGS
-#include<Windows.h>
-#include<WinSock2.h>
-#pragma comment(lib,"ws2_32.lib")
-#endif
-
 #include<DataPackage.h>
 #include<iostream>
 #include<cassert>
 #include<future>
 #include<thread>
+
+#if _WIN32                          //Windows Enviorment
+#define _WINSOCK_DEPRECATED_NO_WARNINGS
+#define WIN32_LEAN_AND_MEAN
+#include<Windows.h>
+#include<WinSock2.h>
+#pragma comment(lib,"ws2_32.lib")
+
+#else                                   //Unix/Linux/Macos Enviorment
+
+#include<unistd.h>
+#include<arpa/inet.h>
+#include<sys/socket.h>
+
+/* Network Socket Def*/
+typedef uint64_t UINT_PTR,*PUINT_PTR;
+typedef UINT_PTR SOCKET;
+typedef struct timeval timeval;
+typedef sockaddr_in SOCKADDR_IN;
+#define INVALID_SOCKET static_cast<SOCKET>(~0)
+#define SOCKET_ERROR (-1)
+
+/*param sign*/
+#define IN          //param input sign
+#define OUT         //param output sign
+#endif
 
 class HelloClient
 {
@@ -50,13 +67,17 @@ private:
           void initClientIOMultiplexing();
           bool initClientSelectModel();
 
-          void functionClientInput(IN SOCKET& _client);
+          void functionClientInput(
+                    IN SOCKET& _client,
+                    IN OUT  std::promise<bool>& interfacePromise
+          );
+
           bool functionLogicLayer();
 
 private:
           /*client interface thread*/
           std::promise<bool> m_interfacePromise;
-          std::shared_future<bool> m_interfaceFuture = this->m_interfacePromise.get_future();
+          std::shared_future<bool> m_interfaceFuture = m_interfacePromise.get_future();
 
           /*select network model*/
           fd_set m_fdread;
@@ -66,7 +87,7 @@ private:
           SOCKET m_client_socket;                           //client connection socket
           sockaddr_in m_server_address;
 
-#ifdef _WINDOWS
+#if _WIN32 
           WSADATA m_wsadata;
 #endif // _WINDOWS 
 };

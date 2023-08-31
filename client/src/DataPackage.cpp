@@ -30,10 +30,15 @@ _LoginData::_LoginData()
 _LoginData::_LoginData(
           const std::string _usrName,
           const std::string _usrPassword)
-          :_PackageHeader(sizeof(_LoginData),CMD_LOGIN)
+          :_PackageHeader(sizeof(_LoginData), CMD_LOGIN)
 {
+#if _WIN32 || WIN32  //windows
           strcpy_s(this->userName, _usrName.c_str());
           strcpy_s(this->userPassword, _usrPassword.c_str());
+#else                //Unix/Linux/Macos
+          strcpy(this->userName, _usrName.c_str());
+          strcpy(this->userPassword, _usrPassword.c_str());
+#endif
 }
 
 _LoginData::~_LoginData()
@@ -48,7 +53,11 @@ _LogoutData::_LogoutData()
 _LogoutData::_LogoutData(const std::string _usrName)
           : _PackageHeader(sizeof(_LogoutData), CMD_LOGOUT)
 {
+#if _WIN32 || WIN32  //windows
           strcpy_s(this->userName, _usrName.c_str());
+#else                //Unix/Linux/Macos
+          strcpy(this->userName, _usrName.c_str());
+#endif
 }
 
 _LogoutData:: ~_LogoutData()
@@ -65,8 +74,13 @@ _SystemData::_SystemData(
           const std::string _serverRunTime)
           : _PackageHeader(sizeof(_SystemData), CMD_SYSTEM)
 {
+#if _WIN32 || WIN32  //windows
           strcpy_s(this->serverName, _serverName.c_str());
           strcpy_s(this->serverRunTime, _serverRunTime.c_str());
+#else                //Unix/Linux/Macos
+          strcpy(this->serverName, _serverName.c_str());
+          strcpy(this->serverRunTime, _serverRunTime.c_str());
+#endif
 }
 
 _SystemData::~_SystemData()
