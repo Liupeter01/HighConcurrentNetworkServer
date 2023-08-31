@@ -87,6 +87,7 @@ private:
 
           void initServerIOMultiplexing();
           bool initServerSelectModel();
+          int getlargestSocketValue();
           bool functionLogicLayer(IN std::vector<_ClientAddr>::iterator _clientSocket);
           bool functionServerLayer();
 

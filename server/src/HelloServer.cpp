@@ -135,6 +135,24 @@ bool HelloServer::acceptClientConnection(
 }
 
 /*------------------------------------------------------------------------------------------------------
+* select function needs the larest SOCKET number and add up one 
+* @function: int getlargestSocketValue 
+* @retvalue: int-> as the larest number
+*------------------------------------------------------------------------------------------------------*/
+int HelloServer::getlargestSocketValue()
+{
+    SOCKET _largestSocket = this->m_server_socket;  //currently, the number of server socket is the largest
+    
+    /*travelersal the client socket container and try to find out the largest socket number! */
+    for (auto ib = this->m_clientVec.begin(); ib != this->m_clientVec.end(); ib++) {
+        if(_largestSocket < ib->m_clientSocket){
+            _largestSocket = ib->m_clientSocket;
+        }
+    }
+    return ((static_cast<int>(_largestSocket))) + 1;
+}
+
+/*------------------------------------------------------------------------------------------------------
 * init IO Multiplexing
 * @function: void initServerIOMultiplexing
 *------------------------------------------------------------------------------------------------------*/
@@ -161,7 +179,8 @@ void HelloServer::initServerIOMultiplexing()
 *------------------------------------------------------------------------------------------------------*/
 bool HelloServer::initServerSelectModel()
 {
-          return (::select(static_cast<int>(this->m_server_socket + 1),
+          return (::select(
+                    this->getlargestSocketValue(),
                     &m_fdread,
                     &m_fdwrite,
                     &m_fdexception,
