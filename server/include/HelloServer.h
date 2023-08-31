@@ -1,11 +1,13 @@
 #pragma once
-#define _WINDOWS
-#ifdef _WINDOWS
+
+#if _WIN32 || WIN32  //windowsƽ̨
 #define _WINSOCK_DEPRECATED_NO_WARNINGS
 #define WIN32_LEAN_AND_MEAN
 #include<Windows.h>
 #include<WinSock2.h>
 #pragma comment(lib,"ws2_32.lib")
+#else
+
 #endif
 
 #include "DataPackage.h"
