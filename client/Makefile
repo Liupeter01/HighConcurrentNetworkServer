@@ -1,13 +1,22 @@
-TARGET:= Client
-SRC:=$(wildcard *.cpp)
-OBJS:=$(patsubst %.cpp,%.o,$(SRC))
+BUILD_DIR:=build
+TARGET:= $(BUILD_DIR)/Client
+CXXFLAGS:= -O0 -Wall -Wextra -g -lpthread -Iinclude -std=c++11
 
-$(TARGET):$(OBJS)
-	$(CXX) $^ -o $@
+CXX_FILES := $(wildcard src/*.cpp)
+OBJ_FILES := $(CXX_FILES:src/%.cpp=$(BUILD_DIR)/%_cpp.o)
 
-all:
-	echo $(SRC)
+.PHONY: clean all build
+all: build
 
-.PHONY:
+#compile cpp files and generate obj files
+build/%_cpp.o: src/%.cpp
+	mkdir -p $(@D)
+	$(CXX) $(CXXFLAGS) -c $< -o $@
+
+#link obj files to excutable file
+build: $(OBJ_FILES)
+	$(CXX) $(CXXFLAGS) $^ -o $(TARGET)
+
 clean:
-	$(RM) $(OBJS) $(TARGET)
+	@echo "Cleaning up..."
+	rm -rf $(BUILD_DIR)

@@ -48,19 +48,25 @@ HelloServer::HelloServer(
           IN unsigned long _ipAddr, 
           IN unsigned short _ipPort)
 {
-#ifdef _WINDOWS
+#if _WIN32 || WIN32 /* Windows Enviorment*/
           WSAStartup(MAKEWORD(2, 2), &m_wsadata);
-#endif // _WINDOWS
+#endif
           this->initServerAddressBinding(_ipAddr, _ipPort);
 }
 
 HelloServer::~HelloServer()
 {
-          this->m_clientVec.clear();
-          ::closesocket(this->m_server_socket);
-#ifdef _WINDOWS
+#if _WIN32 || WIN32 /* Windows Enviorment*/
+          ::shutdown(this->m_server_socket,SD_BOTH); //disconnect I/O
           WSACleanup();
-#endif // _WINDOWS
+          ::closesocket(this->m_server_socket);     //release socket completely!! 
+
+#else   /* Unix/Linux/Macos Enviorment*/
+          ::shutdown(this->m_server_socket,SHUT_RDWR);//disconnect I/O and keep recv buffer
+          close(this->m_server_socket);                //release socket completely!! 
+
+#endif
+          this->m_clientVec.clear();
 }
 
 /*------------------------------------------------------------------------------------------------------
@@ -108,7 +114,11 @@ bool HelloServer::acceptClientConnection(
           OUT SOCKET *clientSocket,
           OUT SOCKADDR_IN* _clientAddr)
 {
-          int addrlen = sizeof(SOCKADDR_IN);
+#if _WIN32 || WIN32 /* Windows Enviorment*/
+          int addrlen = sizeof(SOCKADDR_IN);   
+#else   /* Unix/Linux/Macos Enviorment*/
+          socklen_t addrlen = sizeof(SOCKADDR_IN);       
+#endif  
           *clientSocket =  ::accept(
                     serverSocket, 
                     reinterpret_cast<sockaddr*>(_clientAddr),
@@ -155,7 +165,7 @@ bool HelloServer::initServerSelectModel()
                     &m_fdread,
                     &m_fdwrite,
                     &m_fdexception,
-                    reinterpret_cast<const timeval*>(&this->m_timeoutSetting)) < 0);                  //Select Task Ended!
+                    &this->m_timeoutSetting) < 0);                  //Select Task Ended!
 }
 
 /*------------------------------------------------------------------------------------------------------
@@ -178,11 +188,11 @@ void HelloServer::initServerAddressBinding(
 
           this->m_server_address.sin_family = AF_INET;                                    //IPV4
           this->m_server_address.sin_port = htons(_port);                                     //Port number
-#ifdef _WINDOWS
+#if _WIN32 || WIN32 /* Windows Enviorment*/
           this->m_server_address.sin_addr.S_un.S_addr = _ipAddr;                 //IP address(Windows)   
-#else
-          this->m_server_address.sin_addr.s_addr = _ipAddr;                            //IP address(LINUX)   
-#endif // _WINDOWS
+#else               /* Unix/Linux/Macos Enviorment*/
+          this->m_server_address.sin_addr.s_addr = _ipAddr;                            //IP address(LINUX) 
+#endif
 
           bindStatus = ::bind(
                     this->m_server_socket,
@@ -262,11 +272,12 @@ void HelloServer::serverMainFunction()
                               break;
                     }
 
-                    /*SERVER ACCELERATION PROPOSESD*/
+                    /*SERVER ACCELERATION PROPOSESD(Windows Enviorment only!)*/
+#if _WIN32 || WIN32 /* Windows Enviorment*/
                     if (!this->m_fdread.fd_count) {                                         //in fd_read array, no socket has been found!!               
 
                     }
-
+#endif
                     if (FD_ISSET(this->m_server_socket, &m_fdread)) {    //Detect client message input signal
                               SOCKET _clientSocket;                                       //the temp variable to record client's socket
                               sockaddr_in _clientAddress;                                 //the temp variable to record client's address                                     
@@ -299,7 +310,7 @@ void HelloServer::serverMainFunction()
                               }
                               ib++;
                     }
-                    this->functionServerLayer();                                                                                        //process server's own business
+                    //this->functionServerLayer();                                                                                        //process server's own business
           }
 }
 
