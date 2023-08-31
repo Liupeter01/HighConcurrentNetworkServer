@@ -48,7 +48,7 @@ HelloServer::HelloServer(
           IN unsigned long _ipAddr, 
           IN unsigned short _ipPort)
 {
-#if _WIN32 || WIN32 /* Windows Enviorment*/
+#if _WIN32                          //Windows Enviorment
           WSAStartup(MAKEWORD(2, 2), &m_wsadata);
 #endif
           this->initServerAddressBinding(_ipAddr, _ipPort);
@@ -56,12 +56,12 @@ HelloServer::HelloServer(
 
 HelloServer::~HelloServer()
 {
-#if _WIN32 || WIN32 /* Windows Enviorment*/
+#if _WIN32                          //Windows Enviorment
           ::shutdown(this->m_server_socket,SD_BOTH); //disconnect I/O
           WSACleanup();
           ::closesocket(this->m_server_socket);     //release socket completely!! 
 
-#else   /* Unix/Linux/Macos Enviorment*/
+#else                                   /* Unix/Linux/Macos Enviorment*/
           ::shutdown(this->m_server_socket,SHUT_RDWR);//disconnect I/O and keep recv buffer
           close(this->m_server_socket);                //release socket completely!! 
 
@@ -114,9 +114,9 @@ bool HelloServer::acceptClientConnection(
           OUT SOCKET *clientSocket,
           OUT SOCKADDR_IN* _clientAddr)
 {
-#if _WIN32 || WIN32 /* Windows Enviorment*/
+#if _WIN32             //Windows Enviorment
           int addrlen = sizeof(SOCKADDR_IN);   
-#else   /* Unix/Linux/Macos Enviorment*/
+#else                         /* Unix/Linux/Macos Enviorment*/
           socklen_t addrlen = sizeof(SOCKADDR_IN);       
 #endif  
           *clientSocket =  ::accept(
@@ -188,7 +188,8 @@ void HelloServer::initServerAddressBinding(
 
           this->m_server_address.sin_family = AF_INET;                                    //IPV4
           this->m_server_address.sin_port = htons(_port);                                     //Port number
-#if _WIN32 || WIN32 /* Windows Enviorment*/
+
+#if _WIN32     //Windows Enviorment
           this->m_server_address.sin_addr.S_un.S_addr = _ipAddr;                 //IP address(Windows)   
 #else               /* Unix/Linux/Macos Enviorment*/
           this->m_server_address.sin_addr.s_addr = _ipAddr;                            //IP address(LINUX) 
@@ -272,12 +273,12 @@ void HelloServer::serverMainFunction()
                               break;
                     }
 
+#if _WIN32      
                     /*SERVER ACCELERATION PROPOSESD(Windows Enviorment only!)*/
-#if _WIN32 || WIN32 /* Windows Enviorment*/
                     if (!this->m_fdread.fd_count) {                                         //in fd_read array, no socket has been found!!               
-
                     }
 #endif
+
                     if (FD_ISSET(this->m_server_socket, &m_fdread)) {    //Detect client message input signal
                               SOCKET _clientSocket;                                       //the temp variable to record client's socket
                               sockaddr_in _clientAddress;                                 //the temp variable to record client's address                                     

@@ -1,26 +1,26 @@
 #pragma once
-#include "DataPackage.h"
+#include<DataPackage.h>
 #include<iostream>
 #include<cassert>
 #include<vector>
 #include<future>
 #include<thread>
 
-#if _WIN32 || WIN3 /* Windows Enviorment*/
+#if _WIN32             //Windows Enviorment
 #define _WINSOCK_DEPRECATED_NO_WARNINGS
 #define WIN32_LEAN_AND_MEAN
 #include<Windows.h>
 #include<WinSock2.h>
 #pragma comment(lib,"ws2_32.lib")
 
-#else              /* Unix/Linux/Macos Enviorment*/
+#else                                   //Unix/Linux/Macos Enviorment
 
 #include<unistd.h>
 #include<arpa/inet.h>
 #include<sys/socket.h>
 
 /* Network Socket Def*/
-typedef uint64_t UINT_PTR,*PUINT_PTR;
+typedef uint64_t UINT_PTR, * PUINT_PTR;
 typedef UINT_PTR SOCKET;
 typedef struct timeval timeval;
 typedef sockaddr_in SOCKADDR_IN;
@@ -100,7 +100,7 @@ private:
           sockaddr_in m_server_address;
           std::vector<_ClientAddr> m_clientVec;
 
-#ifdef _WINDOWS
+#if _WIN32 
           WSADATA m_wsadata;
 #endif // _WINDOWS 
 };

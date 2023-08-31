@@ -2,7 +2,7 @@
 
 HelloClient::HelloClient()
 {
-#if _WIN32 || WIN32 /* Windows Enviorment*/
+#if _WIN32                          //Windows Enviormen
           WSAStartup(MAKEWORD(2, 2), &m_wsadata);
 #endif
           this->m_client_socket = this->createClientSocket();
@@ -13,14 +13,15 @@ HelloClient::HelloClient()
 
 HelloClient::~HelloClient()
 {
-#if _WIN32 || WIN32 /* Windows Enviorment*/
-          ::shutdown(this->m_server_socket,SD_BOTH); //disconnect I/O
-          ::closesocket(this->m_server_socket);     //release socket completely!! 
+#if _WIN32                                                   //Windows Enviorment
+          ::shutdown(this->m_client_socket, SD_BOTH); //disconnect I/O
+          ::closesocket(this->m_client_socket);     //release socket completely!! 
           ::WSACleanup();
 
-#else               /* Unix/Linux/Macos Enviorment*/
-          ::shutdown(this->m_client_socket,SHUT_RDWR);//disconnect I/O and keep recv buffer
+#else                                                                  //Unix/Linux/Macos Enviorment
+          ::shutdown(this->m_client_socket, SHUT_RDWR);//disconnect I/O and keep recv buffer
           close(this->m_client_socket);                //release socket completely!! 
+
 #endif
 }
 
@@ -54,7 +55,8 @@ void HelloClient::connectServer(
 {
           this->m_server_address.sin_family = AF_INET;                                    //IPV4
           this->m_server_address.sin_port = htons(_ipPort);                                     //Port number
-#if _WIN32 || WIN32 /* Windows Enviorment*/
+
+#if _WIN32    //Windows Enviorment
           this->m_server_address.sin_addr.S_un.S_addr = _ipAddr;                 //IP address(Windows)   
 #else               /* Unix/Linux/Macos Enviorment*/
           this->m_server_address.sin_addr.s_addr = _ipAddr;                            //IP address(LINUX) 
@@ -211,12 +213,13 @@ void HelloClient::clientMainFunction()
                     if (this->initClientSelectModel()) {
                               break;
                     }
-                    /*CLIENT ACCELERATION PROPOSESD (Windows Enviorment only!)*/
-#if _WIN32 || WIN32 /* Windows Enviorment*/
-                    if (!this->m_fdread.fd_count) {                                         //in fd_read array, no socket has been found!!               
 
+#if _WIN32     
+                    /*CLIENT ACCELERATION PROPOSESD (Windows Enviorment only!)*/
+                    if (!this->m_fdread.fd_count) {                                         //in fd_read array, no socket has been found!!               
                     }
 #endif
+
                     if (FD_ISSET(this->m_client_socket, &this->m_fdread)) {
                               FD_CLR(this->m_client_socket, &this->m_fdread);
                               if (!this->functionLogicLayer()) {                          //Client Exit Manually

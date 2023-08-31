@@ -5,14 +5,14 @@
 #include<future>
 #include<thread>
 
-#if _WIN32 || WIN3 /* Windows Enviorment*/
+#if _WIN32                          //Windows Enviorment
 #define _WINSOCK_DEPRECATED_NO_WARNINGS
 #define WIN32_LEAN_AND_MEAN
 #include<Windows.h>
 #include<WinSock2.h>
 #pragma comment(lib,"ws2_32.lib")
 
-#else              /* Unix/Linux/Macos Enviorment*/
+#else                                   //Unix/Linux/Macos Enviorment
 
 #include<unistd.h>
 #include<arpa/inet.h>
@@ -83,7 +83,7 @@ private:
           SOCKET m_client_socket;                           //client connection socket
           sockaddr_in m_server_address;
 
-#ifdef _WINDOWS
+#if _WIN32 
           WSADATA m_wsadata;
 #endif // _WINDOWS 
 };
