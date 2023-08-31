@@ -1,4 +1,6 @@
 #pragma once
+#ifndef _HELLOCLIENT_H_
+#define _HELLOCLIENT_H_
 #include<DataPackage.h>
 #include<iostream>
 #include<cassert>
@@ -19,7 +21,7 @@
 #include<sys/socket.h>
 
 /* Network Socket Def*/
-typedef uint64_t UINT_PTR,*PUINT_PTR;
+typedef uint64_t UINT_PTR, * PUINT_PTR;
 typedef UINT_PTR SOCKET;
 typedef struct timeval timeval;
 typedef sockaddr_in SOCKADDR_IN;
@@ -46,7 +48,7 @@ public:
 
 public:
           void connectServer(
-                    IN unsigned long _ipAddr, 
+                    IN unsigned long _ipAddr,
                     IN unsigned short _ipPort
           );
 
@@ -91,3 +93,5 @@ private:
           WSADATA m_wsadata;
 #endif // _WINDOWS 
 };
+
+#endif 
