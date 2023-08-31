@@ -114,18 +114,21 @@ int HelloClient::reciveDataFromServer(
 /*------------------------------------------------------------------------------------------------------
 *  Currently, clientMainFunction excute on a new thread(std::thread m_clientInterface)
 * @function: void functionClientInput
-* @param: [IN] SOCKET & _client
+* @param: 
+                    1.[IN] SOCKET & _client
+                    2.[IN OUT]  std::promise<bool> &interfacePromise
 *------------------------------------------------------------------------------------------------------*/
-void HelloClient::functionClientInput(IN SOCKET& _client)
+void HelloClient::functionClientInput(
+          IN SOCKET& _client,
+          IN OUT  std::promise<bool> &interfacePromise)
 {
-          m_interfacePromise.set_value(true);                                                             //set symphore default value
           while (true) {
                     char _Message[256]{ 0 };
                     std::cin.getline(_Message, 256);
                     if (!strcmp(_Message, "exit")) {
                               std::cout << "[CLIENT EXIT] Client Exit Manually" << std::endl;
-                              this->m_interfacePromise.set_value(false);                            //set symphore value to inform other thread
-                              break;
+                              interfacePromise.set_value(false);                            //set symphore value to inform other thread
+                              return;
                     }
                     else if (!strcmp(_Message, "login")) {
                               _LoginData loginData("client-loopback404", "1234567abc");
@@ -203,9 +206,10 @@ bool HelloClient::functionLogicLayer()
 void HelloClient::clientMainFunction()
 {
           auto res = std::async(                                                                              //shared_future requires std::async to startup
-                    std::launch::async, 
-                    &HelloClient::functionClientInput, this, 
-                    std::ref(m_client_socket)
+                    std::launch::async,
+                    &HelloClient::functionClientInput, this,
+                    std::ref(this->m_client_socket),
+                    std::ref(this->m_interfacePromise)
           );
           while (this->m_interfaceFuture.get())
           {
