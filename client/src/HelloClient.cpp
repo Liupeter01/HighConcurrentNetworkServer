@@ -1,6 +1,7 @@
 #include"HelloClient.h"
 
 HelloClient::HelloClient()
+          :m_interfaceFuture(m_interfacePromise.get_future())
 {
 #if _WIN32                          //Windows Enviormen
           WSAStartup(MAKEWORD(2, 2), &m_wsadata);
@@ -112,13 +113,36 @@ int HelloClient::reciveDataFromServer(
 }
 
 /*------------------------------------------------------------------------------------------------------
+* init IO Multiplexing
+* @function: void initClientIOMultiplexing
+* @description: in client, we only need to deal with client socket
+*------------------------------------------------------------------------------------------------------*/
+void HelloClient::initClientIOMultiplexing()
+{
+          FD_ZERO(&m_fdread);                                                              //clean fd_read
+          FD_SET(this->m_client_socket, &m_fdread);                           //Insert Server Socket into fd_read
+}
+
+/*------------------------------------------------------------------------------------------------------
+* @function: bool initClientSelectModel
+*------------------------------------------------------------------------------------------------------*/
+bool HelloClient::initClientSelectModel()
+{
+          return (::select(static_cast<int>(this->m_client_socket + 1),
+                    &m_fdread,
+                    nullptr,
+                    nullptr,
+                    &this->m_timeoutSetting) < 0);                  //Select Task Ended!
+}
+
+/*------------------------------------------------------------------------------------------------------
 *  Currently, clientMainFunction excute on a new thread(std::thread m_clientInterface)
-* @function: void functionClientInput
+* @function: void clientInterfaceLayer
 * @param: 
                     1.[IN] SOCKET & _client
                     2.[IN OUT]  std::promise<bool> &interfacePromise
 *------------------------------------------------------------------------------------------------------*/
-void HelloClient::functionClientInput(
+void HelloClient::clientInterfaceLayer(
           IN SOCKET& _client,
           IN OUT  std::promise<bool> &interfacePromise)
 {
@@ -149,20 +173,45 @@ void HelloClient::functionClientInput(
 }
 
 /*------------------------------------------------------------------------------------------------------
-* @function:bool functionLogicLayer
+* @function:bool dataProcessingLayer
 *------------------------------------------------------------------------------------------------------*/
-bool HelloClient::functionLogicLayer()
+bool HelloClient::dataProcessingLayer()
 {
           char _buffer[256]{ 0 };
-          if (this->reciveDataFromServer(this->m_client_socket, &_buffer, sizeof(_PackageHeader))<=0) {
+          if (!this->readMessageHeader(reinterpret_cast<_PackageHeader*>(_buffer))) {       //get message header to indentify commands
                     return false;
           }
-          if ((reinterpret_cast<_PackageHeader*>(_buffer))->_packageCmd == CMD_LOGIN) {
+          //if () {}
+          this->readMessageBody(reinterpret_cast< _PackageHeader*>(_buffer));
+          return true;
+}
+
+/*------------------------------------------------------------------------------------------------------
+*  get the first sizeof(_PackageHeader) bytes of data to identify server commands
+* @function: bool readMessageHeader
+* @param: [IN OUT] _PackageHeader *_buffer
+*------------------------------------------------------------------------------------------------------*/
+bool HelloClient::readMessageHeader(IN OUT  _PackageHeader* _header)
+{
+          if (this->reciveDataFromServer(this->m_client_socket, _header, sizeof(_PackageHeader)) <= 0) {
+                    return false;
+          }
+          return true;
+}
+
+/*------------------------------------------------------------------------------------------------------
+*get the first sizeof(_PackageHeader) bytes of data to identify server commands
+* @function: bool readMessageHeader
+* @param : [IN] _PackageHeader* _buffer
+* ------------------------------------------------------------------------------------------------------*/
+void HelloClient::readMessageBody(IN _PackageHeader* _buffer)
+{
+          if (_buffer->_packageCmd == CMD_LOGIN) {
                     _LoginData* recvLoginData(reinterpret_cast<_LoginData*>(_buffer));
                     this->reciveDataFromServer(
                               this->m_client_socket,
-                              _buffer + sizeof(_PackageHeader),
-                              (reinterpret_cast<_PackageHeader*>(_buffer))->_packageLength - sizeof(_PackageHeader)
+                              reinterpret_cast<char*>(_buffer) + sizeof(_PackageHeader),
+                              _buffer->_packageLength - sizeof(_PackageHeader)
                     );
                     if (recvLoginData->loginStatus) {
                               std::cout << "[CLIENT LOGIN INFO] Message Info: " << std::endl
@@ -170,24 +219,24 @@ bool HelloClient::functionLogicLayer()
                                         << "->userPassword = " << recvLoginData->userPassword << std::endl;
                     }
           }
-          else if ((reinterpret_cast<_PackageHeader*>(_buffer))->_packageCmd == CMD_LOGOUT) {
+          else if (_buffer->_packageCmd == CMD_LOGOUT) {
                     _LogoutData* recvLogoutData(reinterpret_cast<_LogoutData*>(_buffer));
                     this->reciveDataFromServer(
                               this->m_client_socket,
-                              _buffer + sizeof(_PackageHeader),
-                              (reinterpret_cast<_PackageHeader*>(_buffer))->_packageLength - sizeof(_PackageHeader)
+                              reinterpret_cast<char*>(_buffer) + sizeof(_PackageHeader),
+                              _buffer->_packageLength - sizeof(_PackageHeader)
                     );
                     if (recvLogoutData->logoutStatus) {
                               std::cout << "[CLIENT LOGOUT INFO] Message Info: " << std::endl
                                         << "->userName = " << recvLogoutData->userName << std::endl;
                     }
           }
-          else if ((reinterpret_cast<_PackageHeader*>(_buffer))->_packageCmd == CMD_SYSTEM) {
+          else if (_buffer->_packageCmd == CMD_SYSTEM) {
                     _SystemData* systemData(reinterpret_cast<_SystemData*>(_buffer));
                     this->reciveDataFromServer(
                               this->m_client_socket,
-                              _buffer + sizeof(_PackageHeader),
-                              (reinterpret_cast<_PackageHeader*>(_buffer))->_packageLength - sizeof(_PackageHeader)
+                              reinterpret_cast<char*>(_buffer) + sizeof(_PackageHeader),
+                              _buffer->_packageLength - sizeof(_PackageHeader)
                     );
                     std::cout << "[SERVER INFO] Message Info: " << std::endl
                               << "->serverName = " << systemData->serverName << std::endl
@@ -196,8 +245,8 @@ bool HelloClient::functionLogicLayer()
           else {
                     std::cout << "[CLIENT UNKOWN INFO] Message Info: Unkown Command" << std::endl;
           }
-          return true;
 }
+
 
 /*------------------------------------------------------------------------------------------------------
 * Currently, clientMainFunction only excute on the main Thread
@@ -207,12 +256,19 @@ void HelloClient::clientMainFunction()
 {
           auto res = std::async(                                                                              //shared_future requires std::async to startup
                     std::launch::async,
-                    &HelloClient::functionClientInput, this,
+                    &HelloClient::clientInterfaceLayer, 
+                    this,
                     std::ref(this->m_client_socket),
                     std::ref(this->m_interfacePromise)
           );
-          while (this->m_interfaceFuture.get())
-          {
+          while (true){
+                    /*wait for future variable to change (if there is no signal then ignore it and do other task)*/
+                    if (this->m_interfaceFuture.wait_for(std::chrono::microseconds(1)) == std::future_status::ready) {
+                              if (!this->m_interfaceFuture.get()) {
+                                        break;
+                              }
+                    }
+
                     this->initClientIOMultiplexing();
                     if (this->initClientSelectModel()) {
                               break;
@@ -226,32 +282,9 @@ void HelloClient::clientMainFunction()
 
                     if (FD_ISSET(this->m_client_socket, &this->m_fdread)) {
                               FD_CLR(this->m_client_socket, &this->m_fdread);
-                              if (!this->functionLogicLayer()) {                          //Client Exit Manually
+                              if (!this->dataProcessingLayer()) {                          //Client Exit Manually
                                         break;
                               }
                     }
           }
-}
-
-/*------------------------------------------------------------------------------------------------------
-* init IO Multiplexing
-* @function: void initClientIOMultiplexing
-* @description: in client, we only need to deal with client socket 
-*------------------------------------------------------------------------------------------------------*/
-void HelloClient::initClientIOMultiplexing()
-{
-          FD_ZERO(&m_fdread);                                                              //clean fd_read
-          FD_SET(this->m_client_socket, &m_fdread);                           //Insert Server Socket into fd_read
-}
-
-/*------------------------------------------------------------------------------------------------------
-* @function: bool initClientSelectModel
-*------------------------------------------------------------------------------------------------------*/
-bool HelloClient::initClientSelectModel()
-{
-          return (::select(static_cast<int>(this->m_client_socket + 1),
-                    &m_fdread,
-                    nullptr,
-                    nullptr,
-                    &this->m_timeoutSetting) < 0);                  //Select Task Ended!
 }

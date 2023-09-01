@@ -69,17 +69,19 @@ private:
           void initClientIOMultiplexing();
           bool initClientSelectModel();
 
-          void functionClientInput(
+          void clientInterfaceLayer(
                     IN SOCKET& _client,
                     IN OUT  std::promise<bool>& interfacePromise
           );
 
-          bool functionLogicLayer();
+          bool dataProcessingLayer();
+          bool readMessageHeader(IN OUT _PackageHeader* _header);
+          void readMessageBody(IN _PackageHeader* _buffer);
 
 private:
           /*client interface thread*/
           std::promise<bool> m_interfacePromise;
-          std::shared_future<bool> m_interfaceFuture = m_interfacePromise.get_future();
+          std::shared_future<bool> m_interfaceFuture;
 
           /*select network model*/
           fd_set m_fdread;
