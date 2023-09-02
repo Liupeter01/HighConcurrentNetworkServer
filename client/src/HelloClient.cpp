@@ -189,7 +189,7 @@ bool HelloClient::dataProcessingLayer()
 
 /*------------------------------------------------------------------------------------------------------
 *  get the first sizeof(_PackageHeader) bytes of data to identify server commands
-* @function: bool readMessageHeader
+* @function: virtual bool readMessageHeader
 * @param: [IN OUT] _PackageHeader *_buffer
 *------------------------------------------------------------------------------------------------------*/
 bool HelloClient::readMessageHeader(IN OUT  _PackageHeader* _header)
@@ -202,7 +202,7 @@ bool HelloClient::readMessageHeader(IN OUT  _PackageHeader* _header)
 
 /*------------------------------------------------------------------------------------------------------
 *get the first sizeof(_PackageHeader) bytes of data to identify server commands
-* @function: bool readMessageHeader
+* @function: virtual void readMessageHeader
 * @param : [IN] _PackageHeader* _buffer
 * ------------------------------------------------------------------------------------------------------*/
 void HelloClient::readMessageBody(IN _PackageHeader* _buffer)
@@ -242,6 +242,17 @@ void HelloClient::readMessageBody(IN _PackageHeader* _buffer)
                     std::cout << "[SERVER INFO] Message Info: " << std::endl
                               << "->serverName = " << systemData->serverName << std::endl
                               << "->serverRunTime = " << systemData->serverRunTime << std::endl;
+          }
+          else if (_buffer->_packageCmd == CMD_BOARDCAST) {
+                    _BoardCast* boardcastData(reinterpret_cast<_BoardCast*>(_buffer));
+                    this->reciveDataFromServer(
+                              this->m_client_socket,
+                              reinterpret_cast<char*>(_buffer) + sizeof(_PackageHeader),
+                              _buffer->_packageLength - sizeof(_PackageHeader)
+                    );
+                    std::cout << "[NEW MEMBER JOINED]: IP Address = "
+                              << boardcastData->new_ip
+                              << ", Port = " << boardcastData->new_port << std::endl;
           }
           else {
                     std::cout << "[CLIENT UNKOWN INFO] Message Info: Unkown Command" << std::endl;

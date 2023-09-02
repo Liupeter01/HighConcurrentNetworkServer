@@ -75,8 +75,8 @@ private:
           );
 
           bool dataProcessingLayer();
-          bool readMessageHeader(IN OUT _PackageHeader* _header);
-          void readMessageBody(IN _PackageHeader* _buffer);
+          virtual bool readMessageHeader(IN OUT _PackageHeader* _header);
+          virtual void readMessageBody(IN _PackageHeader* _buffer);
 
 private:
           /*client interface thread*/

@@ -131,6 +131,7 @@ bool HelloServer::acceptClientConnection(
           std::cout << "[CLIENT MEMBER JOINED]: IP Address = " 
                     << inet_ntoa(_clientAddr->sin_addr)
                     << ", Port = " << _clientAddr->sin_port << std::endl;
+
           return true;
 }
 
@@ -263,6 +264,35 @@ void  HelloServer::sendDataToClient(
 }
 
 /*------------------------------------------------------------------------------------------------------
+* @function: void boardcastDataToAll<sockaddr_in> specialization
+* @param : [IN]  T& _info
+*------------------------------------------------------------------------------------------------------*/
+template<typename T>
+void HelloServer::boardcastDataToAll(IN T& _info)
+{
+          for (std::vector<_ClientAddr>::iterator ib = this->m_clientVec.begin(); ib != this->m_clientVec.end(); ib++) {
+                    this->sendDataToClient(
+                              ib->m_clientSocket,
+                              &_info,
+                              sizeof(T)
+                    );
+          }
+}
+
+template<> 
+void HelloServer::boardcastDataToAll<sockaddr_in>(IN sockaddr_in& _info)
+{
+          _BoardCast _boardPackage(inet_ntoa(_info.sin_addr), _info.sin_port);
+          for (std::vector<_ClientAddr>::iterator ib = this->m_clientVec.begin(); ib != this->m_clientVec.end(); ib++) {
+                    this->sendDataToClient(
+                              ib->m_clientSocket,
+                              &_boardPackage,
+                              sizeof(_boardPackage)
+                    );
+          }
+}
+
+/*------------------------------------------------------------------------------------------------------
 * @function: void reciveDataFromClient
 * @param :
                     1. [IN]  SOCKET&  _clientSocket,
@@ -282,6 +312,111 @@ int HelloServer::reciveDataFromClient(
                     _szBufferSize,
                     0
           );
+}
+
+/*------------------------------------------------------------------------------------------------------
+* @function:  dataProcessingLayer
+* @param: [IN] std::vector<_ClientAddr>::iterator
+* @description: process the request from clients
+* @retvalue : bool
+*------------------------------------------------------------------------------------------------------*/
+bool HelloServer::dataProcessingLayer(IN std::vector<_ClientAddr>::iterator _clientSocket)
+{
+          char _buffer[256]{ 0 };
+          if (!this->readMessageHeader(_clientSocket, reinterpret_cast<_PackageHeader*>(_buffer))) {       //get message header to indentify commands
+                    return false;
+          }
+          if (!this->readMessageBody(_clientSocket, reinterpret_cast<_PackageHeader*>(_buffer))) {             //client exit
+                    return false;
+          }
+          return true;
+}
+
+/*------------------------------------------------------------------------------------------------------
+* @function:  virtual bool readMessageHeader
+* @param: 
+                    1.IN std::vector<_ClientAddr>::iterator _clientSocket
+                    2.[IN OUT ] _PackageHeader* _header
+
+* @description: process clients' message header
+* @retvalue : bool
+*------------------------------------------------------------------------------------------------------*/
+bool HelloServer::readMessageHeader(
+          IN std::vector<_ClientAddr>::iterator _clientSocket,
+          IN OUT _PackageHeader* _header)
+{
+          int  recvStatus = this->reciveDataFromClient(      // record recv data status
+                    _clientSocket->m_clientSocket,
+                    reinterpret_cast<char*>(_header),
+                    sizeof(_PackageHeader)
+          );
+          if (recvStatus <= 0) {                                              //Client Exit Manually 
+                    std::cout << "[CLIENT COMMAND MESSAGE] FROM IP Address = "
+                              << inet_ntoa(_clientSocket->m_clientAddr.sin_addr)
+                              << ",Port=" << _clientSocket->m_clientAddr.sin_port << std::endl
+                              << "Client Exit Manually!" << std::endl;
+                    return false;
+          }
+
+          std::cout << "[CLIENT COMMAND MESSAGE] FROM IP Address = "
+                    << inet_ntoa(_clientSocket->m_clientAddr.sin_addr)
+                    << ",Port=" << _clientSocket->m_clientAddr.sin_port << std::endl
+                    << "->Command= " << _header->_packageCmd << std::endl
+                    << "->PackageLength= " << _header->_packageLength << std::endl;
+          return true;
+}
+
+/*------------------------------------------------------------------------------------------------------
+* @function:  virtual void readMessageBody
+* @param: 
+                    1.IN std::vector<_ClientAddr>::iterator _clientSocket
+                    2.[IN] _PackageHeader* _buffer
+* @description:  process clients' message body
+* 
+* @retvalue : bool
+*------------------------------------------------------------------------------------------------------*/
+bool HelloServer::readMessageBody(
+          IN std::vector<_ClientAddr>::iterator _clientSocket,
+          IN _PackageHeader* _buffer)
+{
+          int recvStatus(0);
+          if (_buffer->_packageCmd == CMD_LOGIN) {
+                    _LoginData* loginData(reinterpret_cast<_LoginData*>(_buffer));
+                    recvStatus = this->reciveDataFromClient(
+                              _clientSocket->m_clientSocket,
+                              reinterpret_cast<char*>(loginData) + sizeof(_PackageHeader),
+                              _buffer->_packageLength - sizeof(_PackageHeader)
+                    );
+                    loginData->loginStatus = true;                                                                               //set login status as true
+
+                    std::cout << "[CLIENT LOGIN MESSAGE] " << std::endl
+                              << "->UserName= " << loginData->userName << std::endl
+                              << "->UserPassword= " << loginData->userPassword << std::endl;
+
+                    this->sendDataToClient(_clientSocket->m_clientSocket, loginData, sizeof(_LoginData));
+          }
+          else if (_buffer->_packageCmd == CMD_LOGOUT) {
+                    _LogoutData *logoutData(reinterpret_cast<_LogoutData*>(_buffer));
+                    recvStatus = this->reciveDataFromClient(
+                              _clientSocket->m_clientSocket,
+                              reinterpret_cast<char*>(logoutData) + sizeof(_PackageHeader),
+                              _buffer->_packageLength - sizeof(_PackageHeader)
+                    );
+                    logoutData->logoutStatus = true;                                                                               //set logout status as true
+                    std::cout << "[CLIENT LOGOUT MESSAGE] " << std::endl
+                              << "->UserName= " << logoutData->userName << std::endl;
+
+                    this->sendDataToClient(_clientSocket->m_clientSocket, &logoutData, sizeof(_LogoutData));
+          }
+          else if (_buffer->_packageCmd == CMD_SYSTEM) {
+                    _SystemData systemData("Server System", "100");
+                    std::cout << "[CLIENT SYSTEM MESSAGE] " << std::endl;
+                    this->sendDataToClient(_clientSocket->m_clientSocket, &systemData, sizeof(_SystemData));
+          }
+          if (recvStatus <= 0) {                                              //Client Exit Manually
+                    return false;
+          }
+          return true;
 }
 
 void HelloServer::serverMainFunction()
@@ -308,6 +443,9 @@ void HelloServer::serverMainFunction()
                                         &_clientSocket,
                                         &_clientAddress
                               );
+
+                              /*BoardCast Client's Connection to Other Clients (expect itself)*/
+                              this->boardcastDataToAll(_clientAddress);
                               this->m_clientVec.emplace_back(_clientSocket, _clientAddress);
                     }
 
@@ -318,8 +456,7 @@ void HelloServer::serverMainFunction()
                               * retvalue: when functionlogicLayer return a value of false it means [CLIENT EXIT MANUALLY]
                               * then you have to remove it from the container
                               */
-                              if (!this->functionLogicLayer(ib)) {                                                                   
-
+                              if (!this->dataProcessingLayer(ib)) {
                                         /*
                                         *There is a kind of sceniro which there is only one client who still remainning connection to the server
                                         */        
@@ -330,87 +467,6 @@ void HelloServer::serverMainFunction()
                               }
                               ib++;
                     }
-                    //this->functionServerLayer();                                                                                        //process server's own business
+                     //process server's own business
           }
-}
-
-/*------------------------------------------------------------------------------------------------------
-* @function: void funtionLogicLayer
-* @param: [IN] std::vector<_ClientAddr>::iterator
-* @description: process the request from clients
-* @retvalue : bool
-*------------------------------------------------------------------------------------------------------*/
-bool HelloServer::functionLogicLayer(IN std::vector<_ClientAddr>::iterator  _clientSocket)
-{
-          _PackageHeader packageHeader;
-          int  recvStatus = this->reciveDataFromClient(      // record recv data status
-                    _clientSocket->m_clientSocket,
-                    &packageHeader, 
-                    sizeof(_PackageHeader)
-          ); 
-          if (recvStatus <= 0) {                                              //Client Exit Manually 
-                    std::cout << "[CLIENT COMMAND MESSAGE] FROM IP Address = "
-                              << inet_ntoa(_clientSocket->m_clientAddr.sin_addr)
-                              << ",Port=" << _clientSocket->m_clientAddr.sin_port << std::endl
-                              << "Client Exit Manually!" << std::endl;
-
-                    return false;
-          }
-         
-          std::cout << "[CLIENT COMMAND MESSAGE] FROM IP Address = "
-                    << inet_ntoa(_clientSocket->m_clientAddr.sin_addr)
-                    << ",Port=" << _clientSocket->m_clientAddr.sin_port << std::endl
-                    << "->Command= " << packageHeader._packageCmd << std::endl
-                    << "->PackageLength= " << packageHeader._packageLength << std::endl;
-
-          if (packageHeader._packageCmd == CMD_LOGIN) {
-                    _LoginData loginData;
-                    recvStatus = this->reciveDataFromClient(
-                              _clientSocket->m_clientSocket,
-                              reinterpret_cast<char*>(&loginData) + sizeof(_PackageHeader),
-                              packageHeader._packageLength - sizeof(_PackageHeader)
-                    );
-                    loginData.loginStatus = true;                                                                               //set login status as true
-
-                    std::cout << "[CLIENT LOGIN MESSAGE] " << std::endl
-                              << "->UserName= " << loginData.userName << std::endl
-                              << "->UserPassword= " << loginData.userPassword << std::endl;
-
-                    this->sendDataToClient(_clientSocket->m_clientSocket, &loginData, sizeof(loginData));
-          }
-          else if (packageHeader._packageCmd == CMD_LOGOUT) {
-                    _LogoutData logoutData;
-                    recvStatus = this->reciveDataFromClient(
-                              _clientSocket->m_clientSocket,
-                              reinterpret_cast<char*>(&logoutData) + sizeof(_PackageHeader),
-                              packageHeader._packageLength - sizeof(_PackageHeader)
-                    );
-                    logoutData.logoutStatus = true;                                                                               //set logout status as true
-                    std::cout << "[CLIENT LOGOUT MESSAGE] " << std::endl
-                              << "->UserName= " << logoutData.userName << std::endl;
-
-                    this->sendDataToClient(_clientSocket->m_clientSocket, &logoutData, sizeof(logoutData));
-          }
-          else if (packageHeader._packageCmd == CMD_SYSTEM) {
-                    _SystemData systemData("Server System", "100");
-
-                    std::cout << "[CLIENT SYSTEM MESSAGE] " << std::endl;
-
-                    this->sendDataToClient(_clientSocket->m_clientSocket, &systemData, sizeof(_SystemData));
-          }
-          if (recvStatus <= 0) {                                              //Client Exit Manually
-                    return false;
-          }  
-          return true;
-}
-
-/*------------------------------------------------------------------------------------------------------
-* @function:  functionServerLayer
-* @description: process the server's own business
-* @retvalue : bool
-*------------------------------------------------------------------------------------------------------*/
-bool HelloServer::functionServerLayer()
-{
-          std::cout << "handle server's own business!" << std::endl;
-          return true;
 }

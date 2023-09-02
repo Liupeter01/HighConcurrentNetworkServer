@@ -13,6 +13,7 @@ enum PackageCommand
           CMD_LOGIN,                    //login command
           CMD_LOGOUT,                 //login logout
           CMD_SYSTEM,                   //acquire server system info
+          CMD_BOARDCAST,          //server send boardcast package to other client
           CMD_ERROR
 };
 
@@ -72,4 +73,18 @@ struct _SystemData :public _PackageHeader
 public:
           char serverName[32]{ 0 };
           char serverRunTime[32]{ 0 };
+};
+
+struct _BoardCast :public _PackageHeader
+{
+          _BoardCast();
+          _BoardCast(
+                    const std::string _ip,
+                    const  unsigned short _port
+          );
+          virtual ~_BoardCast();
+
+public:
+          char new_ip[32]{ 0 };
+          unsigned short  new_port;
 };

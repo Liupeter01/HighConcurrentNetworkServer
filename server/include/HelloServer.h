@@ -72,7 +72,6 @@ public:
                     IN T* _szSendBuf,
                     IN int _szBufferSize
           );
-
           template<typename T> int reciveDataFromClient(
                     IN  SOCKET& _clientSocket,
                     OUT T* _szRecvBuf,
@@ -80,6 +79,8 @@ public:
           );
           void startServerListening(int backlog = SOMAXCONN);
           void serverMainFunction();
+
+          template<typename T> void boardcastDataToAll(IN T& _info);
 
 private:
           void initServerAddressBinding(
@@ -90,8 +91,17 @@ private:
           void initServerIOMultiplexing();
           bool initServerSelectModel();
           int getlargestSocketValue();
-          bool functionLogicLayer(IN std::vector<_ClientAddr>::iterator _clientSocket);
-          bool functionServerLayer();
+          bool dataProcessingLayer(IN std::vector<_ClientAddr>::iterator _clientSocket);
+
+private:
+          virtual bool readMessageHeader(
+                    IN std::vector<_ClientAddr>::iterator _clientSocket,
+                    IN OUT _PackageHeader* _header
+          );
+          virtual bool readMessageBody(
+                    IN std::vector<_ClientAddr>::iterator _clientSocket,
+                    IN _PackageHeader* _buffer
+          );
 
 private:
           fd_set m_fdread;
