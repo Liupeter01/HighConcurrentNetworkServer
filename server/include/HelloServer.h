@@ -80,7 +80,10 @@ public:
           void startServerListening(int backlog = SOMAXCONN);
           void serverMainFunction();
 
-          template<typename T> void boardcastDataToAll(IN T& _info);
+          template<typename T> void boardcastDataToAll(
+                    IN SOCKET &_currSocket,
+                    IN T& _info
+          );
 
 private:
           void initServerAddressBinding(

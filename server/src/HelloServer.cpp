@@ -265,30 +265,54 @@ void  HelloServer::sendDataToClient(
 
 /*------------------------------------------------------------------------------------------------------
 * @function: void boardcastDataToAll<sockaddr_in> specialization
-* @param : [IN]  T& _info
+* @param : 
+          1.[IN] SOCKET& _currSocket
+          2.[IN]  T& _info
 *------------------------------------------------------------------------------------------------------*/
 template<typename T>
-void HelloServer::boardcastDataToAll(IN T& _info)
+void HelloServer::boardcastDataToAll(
+          IN SOCKET& _currSocket, 
+          IN T& _info)
 {
-          for (std::vector<_ClientAddr>::iterator ib = this->m_clientVec.begin(); ib != this->m_clientVec.end(); ib++) {
-                    this->sendDataToClient(
-                              ib->m_clientSocket,
-                              &_info,
-                              sizeof(T)
-                    );
+          if (this->m_clientVec.size() <= 1) {                                  //there is only one or no client, so return
+                    return;
+          }
+          for (std::vector<_ClientAddr>::iterator ib = this->m_clientVec.begin(); ib != this->m_clientVec.end(); ) {
+                    if (ib == this->m_clientVec.end()) {	 //judge current container status
+                              break;
+                    }
+                    if (ib->m_clientSocket != _currSocket) {
+                              this->sendDataToClient(
+                                        ib->m_clientSocket,
+                                        &_info,
+                                        sizeof(T)
+                              );
+                    }
+                    ib++;
           }
 }
 
 template<> 
-void HelloServer::boardcastDataToAll<sockaddr_in>(IN sockaddr_in& _info)
+void HelloServer::boardcastDataToAll<sockaddr_in>(
+          IN SOCKET& _currSocket,
+          IN sockaddr_in& _info)
 {
+          if (this->m_clientVec.size() <= 1) {                                  //there is only one or no client, so return
+                    return;
+          }
           _BoardCast _boardPackage(inet_ntoa(_info.sin_addr), _info.sin_port);
-          for (std::vector<_ClientAddr>::iterator ib = this->m_clientVec.begin(); ib != this->m_clientVec.end(); ib++) {
-                    this->sendDataToClient(
-                              ib->m_clientSocket,
-                              &_boardPackage,
-                              sizeof(_boardPackage)
-                    );
+          for (std::vector<_ClientAddr>::iterator ib = this->m_clientVec.begin(); ib != this->m_clientVec.end(); ) {
+                    if (ib == this->m_clientVec.end()) {	 //judge current container status
+                              break;
+                    }
+                    if (ib->m_clientSocket != _currSocket) { 
+                              this->sendDataToClient(
+                                        ib->m_clientSocket,
+                                        &_boardPackage,
+                                        sizeof(_boardPackage)
+                              );
+                    }
+                    ib++;
           }
 }
 
@@ -408,11 +432,6 @@ bool HelloServer::readMessageBody(
 
                     this->sendDataToClient(_clientSocket->m_clientSocket, &logoutData, sizeof(_LogoutData));
           }
-          else if (_buffer->_packageCmd == CMD_SYSTEM) {
-                    _SystemData systemData("Server System", "100");
-                    std::cout << "[CLIENT SYSTEM MESSAGE] " << std::endl;
-                    this->sendDataToClient(_clientSocket->m_clientSocket, &systemData, sizeof(_SystemData));
-          }
           if (recvStatus <= 0) {                                              //Client Exit Manually
                     return false;
           }
@@ -443,10 +462,9 @@ void HelloServer::serverMainFunction()
                                         &_clientSocket,
                                         &_clientAddress
                               );
-
-                              /*BoardCast Client's Connection to Other Clients (expect itself)*/
-                              this->boardcastDataToAll(_clientAddress);
                               this->m_clientVec.emplace_back(_clientSocket, _clientAddress);
+                              /*BoardCast Client's Connection to Other Clients (expect itself)*/
+                              this->boardcastDataToAll(_clientSocket, _clientAddress);
                     }
 
                     //[POTIENTAL BUG HERE!]: why _clientaddr's dtor was deployed

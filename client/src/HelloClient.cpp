@@ -163,10 +163,6 @@ void HelloClient::clientInterfaceLayer(
                               _LogoutData logoutData("client-loopback404");
                               this->sendDataToServer(_client, &logoutData, sizeof(logoutData));
                     }
-                    else if (!strcmp(_Message, "system")) {
-                              _SystemData systemData;
-                              this->sendDataToServer(_client, &systemData, sizeof(_PackageHeader));
-                    }
                     else {
                               std::cout << "[CLIENT ERROR INFO] Invalid Command Input!" << std::endl;
                     }
