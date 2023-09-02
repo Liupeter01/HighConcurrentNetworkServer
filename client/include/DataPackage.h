@@ -1,8 +1,11 @@
 #pragma once
+#ifndef _DATAPACKAGE_H_
+#define _DATAPACKAGE_H_
 #include<string>
+#endif 
 
 /*------------------------------------------------------------------------------------------------------
-* @enum class£ºenum PackageCommand
+* @enum PackageCommand
 *------------------------------------------------------------------------------------------------------*/
 enum PackageCommand
 {
@@ -14,7 +17,7 @@ enum PackageCommand
 };
 
 /*------------------------------------------------------------------------------------------------------
-* @struct£º_PackageHeader
+* @struct _PackageHeader
 * @function: define the length of the package and pass the command to server
 *------------------------------------------------------------------------------------------------------*/
 struct _PackageHeader

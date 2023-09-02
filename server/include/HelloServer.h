@@ -1,4 +1,6 @@
 #pragma once
+#ifndef _HELLOSERVER_H_
+#define _HELLOSERVER_H_
 #include<DataPackage.h>
 #include<iostream>
 #include<cassert>
@@ -32,7 +34,7 @@ typedef sockaddr_in SOCKADDR_IN;
 #define OUT         //param output sign
 #endif
 
-struct _ClientAddr{
+struct _ClientAddr {
           _ClientAddr();
           _ClientAddr(SOCKET _socket, sockaddr_in _addr);
           virtual ~_ClientAddr();
@@ -67,7 +69,7 @@ public:
 public:
           template<typename T> void sendDataToClient(
                     IN  SOCKET& _clientSocket,
-                    IN T* _szSendBuf, 
+                    IN T* _szSendBuf,
                     IN int _szBufferSize
           );
 
@@ -105,3 +107,5 @@ private:
           WSADATA m_wsadata;
 #endif // _WINDOWS 
 };
+
+#endif

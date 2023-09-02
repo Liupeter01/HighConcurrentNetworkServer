@@ -1,5 +1,8 @@
 #pragma once
+#ifndef _DATAPACKAGE_H_
+#define _DATAPACKAGE_H_
 #include<string>
+#endif 
 
 /*------------------------------------------------------------------------------------------------------
 * @enum PackageCommand
