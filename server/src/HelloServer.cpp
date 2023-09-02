@@ -128,9 +128,8 @@ bool HelloServer::acceptClientConnection(
                     return false;
           }
 
-          std::cout << "[CLIENT MEMBER JOINED]: IP Address = " 
-                    << inet_ntoa(_clientAddr->sin_addr)
-                    << ", Port = " << _clientAddr->sin_port << std::endl;
+          std::cout << "Accept Client's Connection<Socket =" << static_cast<int>(*clientSocket) << ","
+                    << inet_ntoa(_clientAddr->sin_addr) << ":" << _clientAddr->sin_port << ">" << std::endl;
 
           return true;
 }
@@ -375,18 +374,14 @@ bool HelloServer::readMessageHeader(
                     sizeof(_PackageHeader)
           );
           if (recvStatus <= 0) {                                              //Client Exit Manually 
-                    std::cout << "[CLIENT COMMAND MESSAGE] FROM IP Address = "
-                              << inet_ntoa(_clientSocket->m_clientAddr.sin_addr)
-                              << ",Port=" << _clientSocket->m_clientAddr.sin_port << std::endl
-                              << "Client Exit Manually!" << std::endl;
+                    std::cout << "Client's Connection Terminate<Socket =" << static_cast<int>(_clientSocket->m_clientSocket) << ","
+                              << inet_ntoa(_clientSocket->m_clientAddr.sin_addr) << ":" << _clientSocket->m_clientAddr.sin_port << ">" 
+                              << std::endl;
                     return false;
           }
-
-          std::cout << "[CLIENT COMMAND MESSAGE] FROM IP Address = "
-                    << inet_ntoa(_clientSocket->m_clientAddr.sin_addr)
-                    << ",Port=" << _clientSocket->m_clientAddr.sin_port << std::endl
-                    << "->Command= " << _header->_packageCmd << std::endl
-                    << "->PackageLength= " << _header->_packageLength << std::endl;
+          std::cout << "Client's Connection Request<Socket =" << static_cast<int>(_clientSocket->m_clientSocket) << ","
+                    << inet_ntoa(_clientSocket->m_clientAddr.sin_addr) << ":" << _clientSocket->m_clientAddr.sin_port << "> : "
+                    << "Data Length = " << _header->_packageLength << ", Request = ";
           return true;
 }
 
@@ -413,9 +408,8 @@ bool HelloServer::readMessageBody(
                     );
                     loginData->loginStatus = true;                                                                               //set login status as true
 
-                    std::cout << "[CLIENT LOGIN MESSAGE] " << std::endl
-                              << "->UserName= " << loginData->userName << std::endl
-                              << "->UserPassword= " << loginData->userPassword << std::endl;
+                    std::cout << "CMD_LOGIN, username = " << loginData->userName
+                              << ", userpassword = " << loginData->userPassword << std::endl;
 
                     this->sendDataToClient(_clientSocket->m_clientSocket, loginData, sizeof(_LoginData));
           }
@@ -427,8 +421,7 @@ bool HelloServer::readMessageBody(
                               _buffer->_packageLength - sizeof(_PackageHeader)
                     );
                     logoutData->logoutStatus = true;                                                                               //set logout status as true
-                    std::cout << "[CLIENT LOGOUT MESSAGE] " << std::endl
-                              << "->UserName= " << logoutData->userName << std::endl;
+                    std::cout << "CMD_LOGOUT, username = " << logoutData->userName << std::endl;
 
                     this->sendDataToClient(_clientSocket->m_clientSocket, &logoutData, sizeof(_LogoutData));
           }

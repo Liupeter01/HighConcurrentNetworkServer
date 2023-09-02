@@ -138,7 +138,7 @@ bool HelloClient::initClientSelectModel()
 
 /*------------------------------------------------------------------------------------------------------
 *  Currently, clientMainFunction excute on a new thread(std::thread m_clientInterface)
-* @function: void clientInterfaceLayer
+* @function: virtual void clientInterfaceLayer
 * @param: 
                     1.[IN] SOCKET & _client
                     2.[IN OUT]  std::promise<bool> &interfacePromise
@@ -148,24 +148,26 @@ void HelloClient::clientInterfaceLayer(
           IN OUT  std::promise<bool> &interfacePromise)
 {
           while (true) {
-                    char _Message[256]{ 0 };
-                    std::cin.getline(_Message, 256);
-                    if (!strcmp(_Message, "exit")) {
-                              std::cout << "[CLIENT EXIT] Client Exit Manually" << std::endl;
-                              interfacePromise.set_value(false);                            //set symphore value to inform other thread
-                              return;
-                    }
-                    else if (!strcmp(_Message, "login")) {
-                              _LoginData loginData("client-loopback404", "1234567abc");
-                              this->sendDataToServer(_client, &loginData, sizeof(loginData));
-                    }
-                    else if (!strcmp(_Message, "logout")) {
-                              _LogoutData logoutData("client-loopback404");
-                              this->sendDataToServer(_client, &logoutData, sizeof(logoutData));
-                    }
-                    else {
-                              std::cout << "[CLIENT ERROR INFO] Invalid Command Input!" << std::endl;
-                    }
+                    //char _Message[256]{ 0 };
+                    //std::cin.getline(_Message, 256);
+                    //if (!strcmp(_Message, "exit")) {
+                    //          std::cout << "[CLIENT EXIT] Client Exit Manually" << std::endl;
+                    //          interfacePromise.set_value(false);                            //set symphore value to inform other thread
+                    //          return;
+                    //}
+                    //else if (!strcmp(_Message, "login")) {
+                    //          _LoginData loginData("client-loopback404", "1234567abc");
+                    //          this->sendDataToServer(_client, &loginData, sizeof(loginData));
+                    //}
+                    //else if (!strcmp(_Message, "logout")) {
+                    //          _LogoutData logoutData("client-loopback404");
+                    //          this->sendDataToServer(_client, &logoutData, sizeof(logoutData));
+                    //}
+                    //else {
+                    //          std::cout << "[CLIENT ERROR INFO] Invalid Command Input!" << std::endl;
+                    //}
+                    _LoginData loginData("client-loopback404", "1234567abc");
+                    this->sendDataToServer(_client, &loginData, sizeof(loginData));
           }
 }
 
@@ -193,6 +195,8 @@ bool HelloClient::readMessageHeader(IN OUT  _PackageHeader* _header)
           if (this->reciveDataFromServer(this->m_client_socket, _header, sizeof(_PackageHeader)) <= 0) {
                     return false;
           }
+          std::cout << "Receive Message From Server<Socket =" << static_cast<int>(this->m_client_socket) << "> : "
+                    << "Data Length = " << _header->_packageLength<< ", Message = ";
           return true;
 }
 
@@ -211,9 +215,8 @@ void HelloClient::readMessageBody(IN _PackageHeader* _buffer)
                               _buffer->_packageLength - sizeof(_PackageHeader)
                     );
                     if (recvLoginData->loginStatus) {
-                              std::cout << "[CLIENT LOGIN INFO] Message Info: " << std::endl
-                                        << "->userName = " << recvLoginData->userName << std::endl
-                                        << "->userPassword = " << recvLoginData->userPassword << std::endl;
+                              std::cout << "CMD_LOGIN, username = " << recvLoginData->userName
+                                        << ", userpassword = " << recvLoginData->userPassword << std::endl;
                     }
           }
           else if (_buffer->_packageCmd == CMD_LOGOUT) {
@@ -224,20 +227,8 @@ void HelloClient::readMessageBody(IN _PackageHeader* _buffer)
                               _buffer->_packageLength - sizeof(_PackageHeader)
                     );
                     if (recvLogoutData->logoutStatus) {
-                              std::cout << "[CLIENT LOGOUT INFO] Message Info: " << std::endl
-                                        << "->userName = " << recvLogoutData->userName << std::endl;
+                              std::cout << "CMD_LOGOUT, username = " << recvLogoutData->userName << std::endl;
                     }
-          }
-          else if (_buffer->_packageCmd == CMD_SYSTEM) {
-                    _SystemData* systemData(reinterpret_cast<_SystemData*>(_buffer));
-                    this->reciveDataFromServer(
-                              this->m_client_socket,
-                              reinterpret_cast<char*>(_buffer) + sizeof(_PackageHeader),
-                              _buffer->_packageLength - sizeof(_PackageHeader)
-                    );
-                    std::cout << "[SERVER INFO] Message Info: " << std::endl
-                              << "->serverName = " << systemData->serverName << std::endl
-                              << "->serverRunTime = " << systemData->serverRunTime << std::endl;
           }
           else if (_buffer->_packageCmd == CMD_BOARDCAST) {
                     _BoardCast* boardcastData(reinterpret_cast<_BoardCast*>(_buffer));
@@ -246,12 +237,12 @@ void HelloClient::readMessageBody(IN _PackageHeader* _buffer)
                               reinterpret_cast<char*>(_buffer) + sizeof(_PackageHeader),
                               _buffer->_packageLength - sizeof(_PackageHeader)
                     );
-                    std::cout << "[NEW MEMBER JOINED]: IP Address = "
-                              << boardcastData->new_ip
-                              << ", Port = " << boardcastData->new_port << std::endl;
+                    std::cout << "CMD_BOARDCAST, New User Identification: <"
+                              << boardcastData->new_ip << ":" 
+                              << boardcastData->new_port << ">" << std::endl;
           }
           else {
-                    std::cout << "[CLIENT UNKOWN INFO] Message Info: Unkown Command" << std::endl;
+                    std::cout << "CMD_UNKOWN" << std::endl;
           }
 }
 

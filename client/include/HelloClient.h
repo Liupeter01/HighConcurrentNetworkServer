@@ -69,7 +69,7 @@ private:
           void initClientIOMultiplexing();
           bool initClientSelectModel();
 
-          void clientInterfaceLayer(
+          virtual void clientInterfaceLayer(
                     IN SOCKET& _client,
                     IN OUT  std::promise<bool>& interfacePromise
           );
