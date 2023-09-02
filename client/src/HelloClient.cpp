@@ -69,14 +69,6 @@ void HelloClient::connectServer(
           {
                     return;
           }
-
-          auto res = std::async(    //startup userinput interface multithreading shared_future requires std::async to startup
-                    std::launch::async,
-                    &HelloClient::clientInterfaceLayer,
-                    this,
-                    std::ref(this->m_client_socket),
-                    std::ref(this->m_interfacePromise)
-          );
 }
 
 /*------------------------------------------------------------------------------------------------------
@@ -263,6 +255,13 @@ void HelloClient::readMessageBody(IN _PackageHeader* _buffer)
 *------------------------------------------------------------------------------------------------------*/
 void HelloClient::clientMainFunction()
 {
+          auto res = std::async(    //startup userinput interface multithreading shared_future requires std::async to startup
+                    std::launch::async,
+                    &HelloClient::clientInterfaceLayer,
+                    this,
+                    std::ref(this->m_client_socket),
+                    std::ref(this->m_interfacePromise)
+          );
           while (true){
                     /*wait for future variable to change (if there is no signal then ignore it and do other task)*/
                     if (this->m_interfaceFuture.wait_for(std::chrono::microseconds(1)) == std::future_status::ready) {
