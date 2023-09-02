@@ -16,3 +16,5 @@
 /server/build
 client/build
 server/build
+/bin/x64/Release
+/temp/x64/Release
