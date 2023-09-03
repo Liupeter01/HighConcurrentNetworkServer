@@ -6,7 +6,7 @@ _PackageHeader::_PackageHeader()
 }
 
 _PackageHeader::_PackageHeader(unsigned long _len)
-          :_PackageHeader(_len, CMD_UNKOWN)
+          :_PackageHeader(_len, CMD_ERROR)
 {
 }
 

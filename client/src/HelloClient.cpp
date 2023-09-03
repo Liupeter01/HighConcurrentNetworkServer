@@ -1,7 +1,9 @@
 #include"HelloClient.h"
 
 HelloClient::HelloClient()
-          :m_interfaceFuture(m_interfacePromise.get_future())
+          :m_interfaceFuture(m_interfacePromise.get_future()),
+          m_szRecvBuffer(new char[m_szRecvBufSize] {0}),
+          m_szMsgBuffer(new char[m_szMsgBufSize] {0})
 {
 #if _WIN32                          //Windows Enviormen
           WSAStartup(MAKEWORD(2, 2), &m_wsadata);
@@ -172,32 +174,36 @@ void HelloClient::clientInterfaceLayer(
 }
 
 /*------------------------------------------------------------------------------------------------------
-* @function:bool dataProcessingLayer
+*  get the first sizeof(_PackageHeader) bytes of data to identify server commands
+* @function: void readMessageHeader
+* @param: [IN] T *_buffer
 *------------------------------------------------------------------------------------------------------*/
-bool HelloClient::dataProcessingLayer()
+template<typename T>
+void HelloClient::readMessageHeader(IN T* _header)
 {
-          char _buffer[256]{ 0 };
-          if (!this->readMessageHeader(reinterpret_cast<_PackageHeader*>(_buffer))) {       //get message header to indentify commands
-                    return false;
-          }
-          //if () {}
-          this->readMessageBody(reinterpret_cast< _PackageHeader*>(_buffer));
-          return true;
 }
 
-/*------------------------------------------------------------------------------------------------------
-*  get the first sizeof(_PackageHeader) bytes of data to identify server commands
-* @function: virtual bool readMessageHeader
-* @param: [IN OUT] _PackageHeader *_buffer
-*------------------------------------------------------------------------------------------------------*/
-bool HelloClient::readMessageHeader(IN OUT  _PackageHeader* _header)
+template<>
+void HelloClient::readMessageHeader<_PackageHeader>(IN _PackageHeader* _header)
 {
-          if (this->reciveDataFromServer(this->m_client_socket, _header, sizeof(_PackageHeader)) <= 0) {
-                    return false;
+          std::cout << "Receive Message From Server<Socket =" << static_cast<int>(this->m_client_socket) <<"> : "
+                    << "Data Length = " << _header->_packageLength << ", Request = ";
+
+          if (_header->_packageCmd == CMD_LOGIN) {
+                    std::cout << "CMD_LOGIN, ";
           }
-          std::cout << "Receive Message From Server<Socket =" << static_cast<int>(this->m_client_socket) << "> : "
-                    << "Data Length = " << _header->_packageLength<< ", Message = ";
-          return true;
+          else if (_header->_packageCmd == CMD_LOGOUT) {
+                    std::cout << "CMD_LOGOUT, ";
+          }
+          else if (_header->_packageCmd == CMD_BOARDCAST) {
+                    std::cout << "CMD_BOARDCAST, ";
+          }
+          else if (_header->_packageCmd == CMD_ERROR) {
+                    std::cout << "CMD_ERROR, ";
+          }
+          else {
+                    std::cout << "CMD_UNKOWN" << std::endl;
+          }
 }
 
 /*------------------------------------------------------------------------------------------------------
@@ -209,43 +215,112 @@ void HelloClient::readMessageBody(IN _PackageHeader* _buffer)
 {
           if (_buffer->_packageCmd == CMD_LOGIN) {
                     _LoginData* recvLoginData(reinterpret_cast<_LoginData*>(_buffer));
-                    this->reciveDataFromServer(
-                              this->m_client_socket,
-                              reinterpret_cast<char*>(_buffer) + sizeof(_PackageHeader),
-                              _buffer->_packageLength - sizeof(_PackageHeader)
-                    );
                     if (recvLoginData->loginStatus) {
-                              std::cout << "CMD_LOGIN, username = " << recvLoginData->userName
+                              std::cout << "username = " << recvLoginData->userName
                                         << ", userpassword = " << recvLoginData->userPassword << std::endl;
                     }
           }
           else if (_buffer->_packageCmd == CMD_LOGOUT) {
                     _LogoutData* recvLogoutData(reinterpret_cast<_LogoutData*>(_buffer));
-                    this->reciveDataFromServer(
-                              this->m_client_socket,
-                              reinterpret_cast<char*>(_buffer) + sizeof(_PackageHeader),
-                              _buffer->_packageLength - sizeof(_PackageHeader)
-                    );
                     if (recvLogoutData->logoutStatus) {
-                              std::cout << "CMD_LOGOUT, username = " << recvLogoutData->userName << std::endl;
+                              std::cout << "username = " << recvLogoutData->userName << std::endl;
                     }
           }
           else if (_buffer->_packageCmd == CMD_BOARDCAST) {
                     _BoardCast* boardcastData(reinterpret_cast<_BoardCast*>(_buffer));
-                    this->reciveDataFromServer(
-                              this->m_client_socket,
-                              reinterpret_cast<char*>(_buffer) + sizeof(_PackageHeader),
-                              _buffer->_packageLength - sizeof(_PackageHeader)
-                    );
-                    std::cout << "CMD_BOARDCAST, New User Identification: <"
-                              << boardcastData->new_ip << ":" 
+                    std::cout << "New User Identification: <"
+                              << boardcastData->new_ip << ":"
                               << boardcastData->new_port << ">" << std::endl;
           }
-          else {
-                    std::cout << "CMD_UNKOWN" << std::endl;
+          else if (_buffer->_packageCmd == CMD_ERROR) {
+                    _BoardCast* boardcastData(reinterpret_cast<_BoardCast*>(_buffer));
+                    std::cout << "New User Identification: <"
+                              << boardcastData->new_ip << ":"
+                              << boardcastData->new_port << ">" << std::endl;
           }
 }
 
+/*------------------------------------------------------------------------------------------------------
+* @function:bool dataProcessingLayer
+*------------------------------------------------------------------------------------------------------*/
+bool HelloClient::dataProcessingLayer()
+{
+          int  recvStatus = this->reciveDataFromServer(      //retrieve data from kernel buffer space
+                    this->m_client_socket,
+                    this->m_szRecvBuffer.get(),
+                    this->m_szRecvBufSize
+          );
+          if (recvStatus <= 0) {                                             //no data recieved!
+                    std::cout << "Server's Connection Terminate<Socket =" << this->m_client_socket << ","
+                              << inet_ntoa(this->m_server_address.sin_addr) << ":"
+                              << this->m_server_address.sin_port << ">" << std::endl;
+
+                    return false;
+          }
+          /*transmit m_szRecvBuffer to m_szMsgBuffer*/
+#if _WIN32     //Windows Enviorment
+          memcpy_s(
+                    this->m_szMsgBuffer.get() + this->m_szMsgPtrPos,
+                    this->m_szMsgBufSize - this->m_szMsgPtrPos,
+                    this->m_szRecvBuffer.get(),
+                    recvStatus
+          );
+
+#else               /* Unix/Linux/Macos Enviorment*/
+          memcpy(
+                    this->m_szMsgBuffer.get() + this->m_szMsgPtrPos,
+                    this->m_szRecvBuffer.get(),
+                    recvStatus
+          );
+
+#endif
+
+          this->m_szMsgPtrPos += recvStatus;                                    //get to the tail of current message
+
+          /* judge whether the length of the data in message buffer is bigger than the sizeof(_PackageHeader) */
+          while (this->m_szMsgPtrPos >= sizeof(_PackageHeader)) {
+                    _PackageHeader* _header(reinterpret_cast<_PackageHeader*>(this->m_szMsgBuffer.get()));
+
+                    /*the size of current message in szMsgBuffer is bigger than the package length(_header->_packageLength)*/
+                    if (_header->_packageLength <= this->m_szMsgPtrPos) {
+                              //get message header to indentify commands
+                              this->readMessageHeader(reinterpret_cast<_PackageHeader*>(_header)); 
+                              this->readMessageBody(reinterpret_cast<_PackageHeader*>(_header));
+
+                              /*
+                               * delete this message package and modify the array
+                               */
+#if _WIN32     //Windows Enviorment
+                              memcpy_s(
+                                        this->m_szMsgBuffer.get(),                                                      //the head of message buffer array
+                                        this->m_szMsgBufSize,
+                                        this->m_szMsgBuffer.get() + _header->_packageLength,       //the next serveral potential packages position
+                                        this->m_szMsgPtrPos - _header->_packageLength                   //the size of next serveral potential package
+                              );
+
+#else               /* Unix/Linux/Macos Enviorment*/
+                              memcpy(
+                                        this->m_szMsgBuffer.get(),                                                      //the head of message buffer array
+                                        this->m_szMsgBuffer.get() + _header->_packageLength,       //the next serveral potential packages position
+                                        this->m_szMsgPtrPos - _header->_packageLength                  //the size of next serveral potential package
+                              );
+#endif
+                              this->m_szMsgPtrPos -= _header->_packageLength;                          //recalculate the size of the rest of the array
+                    }
+                    else
+                    {
+                              /*
+                               * the size of current message in szMsgBuffer is insufficent !
+                               * even can not satisfied the basic requirment of sizeof(_PackageHeader)
+                               */
+                              break;
+                    }
+          }
+
+          /*clean the recv buffer*/
+          memset(this->m_szRecvBuffer.get(), 0, this->m_szRecvBufSize);
+          return true;
+}
 
 /*------------------------------------------------------------------------------------------------------
 * Currently, clientMainFunction only excute on the main Thread
