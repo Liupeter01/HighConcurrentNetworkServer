@@ -71,7 +71,10 @@ private:
 
           void initServerIOMultiplexing();
           bool initServerSelectModel();
+
+          
           bool dataProcessingLayer(IN typename  std::vector<ClientType*>::iterator  _clientSocket);
+          void serverInterfaceLayer(IN OUT std::promise<bool>& interfacePromise);
           int getlargestSocketValue();
 
           template<typename T> void readMessageHeader(
@@ -114,6 +117,11 @@ private:
           }
 
 private:
+          /*server interface thread*/
+          std::promise<bool> m_interfacePromise;
+          std::future<bool> m_interfaceFuture;
+          std::thread m_interfaceThread;
+
           /*select network model*/
           SOCKET m_server_socket;                           //server listening socket
           sockaddr_in m_server_address;
@@ -141,10 +149,9 @@ private:
                     2.[IN] unsigned short _port
 *------------------------------------------------------------------------------------------------------*/
 template<class ClientType>
-HelloServer<ClientType>::HelloServer(
-          IN unsigned long _ipAddr,
-          IN unsigned short _ipPort)
-          : m_szRecvBuffer(new char[m_szRecvBufSize] {0})
+HelloServer<ClientType>::HelloServer(IN unsigned long _ipAddr,IN unsigned short _ipPort)
+          :m_interfaceFuture(m_interfacePromise.get_future()),
+          m_szRecvBuffer(new char[m_szRecvBufSize] {0})
 {
 #if _WIN32                          //Windows Enviorment
           WSAStartup(MAKEWORD(2, 2), &m_wsadata);
@@ -155,6 +162,11 @@ HelloServer<ClientType>::HelloServer(
 template<class ClientType>
 HelloServer<ClientType>::~HelloServer()
 {
+          /*join the interface thread*/
+          if (m_interfaceThread.joinable()) {
+                    m_interfaceThread.join();
+          }
+
           /*add all the client socket in to the fd_read*/
           for (auto ib = this->m_clientVec.begin(); ib != this->m_clientVec.end(); ib++) {
 #if _WIN32                          //Windows Enviorment
@@ -290,6 +302,29 @@ void HelloServer<ClientType>::initServerAddressBinding(
 
           if (::bind(this->m_server_socket, reinterpret_cast<sockaddr*>(&this->m_server_address), sizeof(SOCKADDR_IN)) == SOCKET_ERROR) {
                     return;
+          }
+}
+
+/*------------------------------------------------------------------------------------------------------
+*  Currently, serverMainFunction excute on a new thread
+* @function: virtual void serverInterfaceLayer
+* @param:   1.[IN] SOCKET & _client
+                    2.[IN OUT]  std::promise<bool> &interfacePromise
+*------------------------------------------------------------------------------------------------------*/
+template<class ClientType>
+void HelloServer<ClientType>::serverInterfaceLayer(IN OUT  std::promise<bool>& interfacePromise)
+{
+          while (true) {
+                    char _Message[256]{ 0 };
+                    std::cin.getline(_Message, 256);
+                    if (!strcmp(_Message, "exit")) {
+                              std::cout << "Server Interrupted By User, All Connections Close!!" << std::endl;
+                              interfacePromise.set_value(false);                            //set symphore value to inform other thread
+                              return;
+                    }
+                    else {
+                              std::cout << "Server Invalid Command Input!" << std::endl;
+                    }
           }
 }
 
@@ -499,7 +534,20 @@ bool HelloServer<ClientType>::dataProcessingLayer(
 template<class ClientType>
 void HelloServer<ClientType>::serverMainFunction()
 {
+          std::thread initInterface(&HelloServer::serverInterfaceLayer, this, std::ref(this->m_interfacePromise));
+          this->m_interfaceThread.swap(initInterface);
+          if (initInterface.joinable()) {
+                    initInterface.join();
+          }
+         
           while (1) {
+                    /*wait for future variable to change (if there is no signal then ignore it and do other task)*/
+                    if (this->m_interfaceFuture.wait_for(std::chrono::microseconds(1)) == std::future_status::ready) {
+                              if (!this->m_interfaceFuture.get()) {
+                                        break;
+                              }
+                    }
+
                     this->initServerIOMultiplexing();
                     if (this->initServerSelectModel()) {
                               break;

@@ -139,7 +139,7 @@ bool HelloClient::initClientSelectModel()
 }
 
 /*------------------------------------------------------------------------------------------------------
-*  Currently, clientMainFunction excute on a new thread(std::thread m_clientInterface)
+*  Currently, clientMainFunction excute on a new thread
 * @function: virtual void clientInterfaceLayer
 * @param: 
                     1.[IN] SOCKET & _client
