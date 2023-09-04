@@ -74,6 +74,16 @@ void HelloClient::connectServer(
 }
 
 /*------------------------------------------------------------------------------------------------------
+* return the private socket
+* @function:SOCKET& getClientSocket
+* @retvalue: SOCKET &
+*------------------------------------------------------------------------------------------------------*/
+SOCKET& HelloClient::getClientSocket() 
+{
+          return this->m_client_socket;
+}
+
+/*------------------------------------------------------------------------------------------------------
 * @function:void sendDataToServer
 * @param :
 *                  1.[IN] SOCKET& _clientSocket,
@@ -176,15 +186,9 @@ void HelloClient::clientInterfaceLayer(
 /*------------------------------------------------------------------------------------------------------
 *  get the first sizeof(_PackageHeader) bytes of data to identify server commands
 * @function: void readMessageHeader
-* @param: [IN] T *_buffer
+* @param: IN _PackageHeader*
 *------------------------------------------------------------------------------------------------------*/
-template<typename T>
-void HelloClient::readMessageHeader(IN T* _header)
-{
-}
-
-template<>
-void HelloClient::readMessageHeader<_PackageHeader>(IN _PackageHeader* _header)
+void HelloClient::readMessageHeader(IN _PackageHeader* _header)
 {
           std::cout << "Receive Message From Server<Socket =" << static_cast<int>(this->m_client_socket) <<"> : "
                     << "Data Length = " << _header->_packageLength << ", Request = ";

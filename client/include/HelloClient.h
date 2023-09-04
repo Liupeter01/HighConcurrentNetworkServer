@@ -52,6 +52,8 @@ public:
                     IN unsigned short _ipPort
           );
 
+          SOCKET& getClientSocket();
+
           template<typename T> void sendDataToServer(
                     IN  SOCKET& _clientSocket,
                     IN T* _szSendBuf,
@@ -75,11 +77,8 @@ private:
           );
 
           bool dataProcessingLayer();
-
-          template<typename T>
-          void readMessageHeader(IN T* _header);
-
-          virtual void readMessageBody(IN _PackageHeader* _buffer);
+          void readMessageHeader(IN _PackageHeader* _header);
+          void readMessageBody(IN _PackageHeader* _buffer);
 
 private:
           /*client interface thread*/
