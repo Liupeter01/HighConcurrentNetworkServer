@@ -27,3 +27,13 @@ long long HCNSTimeStamp::getElaspsedTime() const
           auto _time_interval = std::chrono::high_resolution_clock::now() - this->m_start;
           return std::chrono::duration_cast<TimeType>(_time_interval).count();
 }
+
+long long HCNSTimeStamp::getElaspsedTimeInMicrosecond() const
+{
+          return this->getElaspsedTime<std::chrono::microseconds>();
+}
+
+long long HCNSTimeStamp::getElaspsedTimeInMillisecond() const
+{
+          return this->getElaspsedTime<std::chrono::milliseconds>();
+}

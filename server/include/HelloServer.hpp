@@ -434,7 +434,7 @@ void HelloServer<ClientType>::readMessageBody(
 
                     this->sendDataToClient((*_clientSocket)->getClientSocket(), logoutData, sizeof(_LogoutData));
           }
-          else {
+          else { 
                     _PackageHeader _error(sizeof(_PackageHeader), CMD_ERROR);
                     this->sendDataToClient((*_clientSocket)->getClientSocket(), &_error, sizeof(_PackageHeader));
           }
