@@ -495,8 +495,8 @@ bool HelloServer<ClientType>::dataProcessingLayer(
                     if (_header->_packageLength <= (*_clientSocket)->getMsgPtrPos()) {
 
                               //get message header to indentify commands    
-                              this->readMessageHeader(_clientSocket, reinterpret_cast<_PackageHeader*>(_header));
-                              this->readMessageBody(_clientSocket, reinterpret_cast<_PackageHeader*>(_header));
+                              //this->readMessageHeader(_clientSocket, reinterpret_cast<_PackageHeader*>(_header));
+                              //this->readMessageBody(_clientSocket, reinterpret_cast<_PackageHeader*>(_header));
 
                               /* delete this message package and modify the array*/
 #if _WIN32     //Windows Enviorment
