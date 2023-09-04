@@ -12,15 +12,19 @@ int main()
           //client.clientMainFunction();
 
           /*Create Client Socket*/
-          HelloClient*  clientPool(new HelloClient[64]);
-          std::vector<std::thread> threadPool;
-
-          for (int i = 0; i < 64; ++i) {
-                    clientPool[i].connectServer(inet_addr("127.0.0.1"), 4567);
-                    threadPool.emplace_back(&HelloClient::clientMainFunction, &clientPool[i]);
+          const int _ClientAmmount = 63;
+          HelloClient* clientPool[_ClientAmmount];
+          _LoginData loginData("client-loopback404", "1234567abc");
+          for (int i = 0; i < _ClientAmmount; ++i) {
+                    clientPool[i] = new HelloClient;
+                    clientPool[i]->connectServer(inet_addr("127.0.0.1"), 4567);
           }
-          for (int i = 0; i < 64; ++i) {
-                    threadPool[i].join();
+          while (true) 
+          {
+                    for (int i = 0; i < _ClientAmmount; ++i)
+                    {
+                              clientPool[i]->sendDataToServer(clientPool[i]->getClientSocket(), &loginData, sizeof(loginData));
+                    }
           }
           delete[]clientPool;
           return 0;
