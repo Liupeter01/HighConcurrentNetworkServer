@@ -12,7 +12,7 @@ int main()
           //client.clientMainFunction();
 
           /*Create Client Socket*/
-          const int _ClientAmmount = 63;
+          const int _ClientAmmount = 1023;
           HelloClient* clientPool[_ClientAmmount];
           _LoginData loginData("client-loopback404", "1234567abc");
           for (int i = 0; i < _ClientAmmount; ++i) {
