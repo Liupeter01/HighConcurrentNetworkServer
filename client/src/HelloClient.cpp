@@ -233,10 +233,7 @@ void HelloClient::readMessageBody(IN _PackageHeader* _buffer)
                               << boardcastData->new_port << ">" << std::endl;
           }
           else if (_buffer->_packageCmd == CMD_ERROR) {
-                    _BoardCast* boardcastData(reinterpret_cast<_BoardCast*>(_buffer));
-                    std::cout << "New User Identification: <"
-                              << boardcastData->new_ip << ":"
-                              << boardcastData->new_port << ">" << std::endl;
+                    std::cout << "Package Error: " << std::endl;
           }
 }
 
