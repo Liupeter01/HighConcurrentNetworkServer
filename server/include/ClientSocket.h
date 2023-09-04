@@ -3,12 +3,16 @@
 #define _CLIENTSOCKET_H_
 #include<iostream>
 
-#if _WIN32             //Windows Enviorment
+#if _WIN32             //Windows Enviorment  
 #define _WINSOCK_DEPRECATED_NO_WARNINGS
 #define WIN32_LEAN_AND_MEAN
 #include<Windows.h>
 #include<WinSock2.h>
 #pragma comment(lib,"ws2_32.lib")
+
+/*break the limitaion of the select model size*/
+#pragma warning(disable : 4005)
+#define FD_SETSIZE 1024         
 
 #else                                   //Unix/Linux/Macos Enviorment
 
