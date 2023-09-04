@@ -233,10 +233,7 @@ void HelloClient::readMessageBody(IN _PackageHeader* _buffer)
                               << boardcastData->new_port << ">" << std::endl;
           }
           else if (_buffer->_packageCmd == CMD_ERROR) {
-                    _BoardCast* boardcastData(reinterpret_cast<_BoardCast*>(_buffer));
-                    std::cout << "New User Identification: <"
-                              << boardcastData->new_ip << ":"
-                              << boardcastData->new_port << ">" << std::endl;
+                    std::cout << "Package Error: " << std::endl;
           }
 }
 
@@ -284,8 +281,8 @@ bool HelloClient::dataProcessingLayer()
                     /*the size of current message in szMsgBuffer is bigger than the package length(_header->_packageLength)*/
                     if (_header->_packageLength <= this->m_szMsgPtrPos) {
                               //get message header to indentify commands
-                              this->readMessageHeader(reinterpret_cast<_PackageHeader*>(_header)); 
-                              this->readMessageBody(reinterpret_cast<_PackageHeader*>(_header));
+                              //this->readMessageHeader(reinterpret_cast<_PackageHeader*>(_header)); 
+                              //this->readMessageBody(reinterpret_cast<_PackageHeader*>(_header));
 
                               /*
                                * delete this message package and modify the array
