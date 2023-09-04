@@ -3,6 +3,7 @@
 #define _HELLOSERVER_H_
 #include<DataPackage.h>
 #include<ClientSocket.h>
+#include<HCNSTimeStamp.h>
 #include<cassert>
 #include<vector>
 #include<future>
@@ -130,12 +131,16 @@ private:
           fd_set m_fdexception;
           timeval m_timeoutSetting{ 0/*0 s*/, 0 /*0 ms*/ };
 
-          /*clients info*/
-          typename std::vector<ClientType*> m_clientVec;
-
           /*server 10KB memory buffer*/
           const unsigned int m_szRecvBufSize = 1024 * 10;                       //10KB
           std::shared_ptr<char> m_szRecvBuffer;                                       //server recive buffer(retrieve much data as possible from kernel)
+
+          /*clients info*/
+          typename std::vector<ClientType*> m_clientVec;
+
+          /*Server High Resolution Clock Model(How Many Packages are recieved per second)*/
+          HCNSTimeStamp *m_timeStamp;
+          std::atomic<unsigned long long> m_packageCounter;                //recv packages counter
 
 #if _WIN32 
           WSADATA m_wsadata;
@@ -151,6 +156,8 @@ private:
 template<class ClientType>
 HelloServer<ClientType>::HelloServer(IN unsigned long _ipAddr,IN unsigned short _ipPort)
           :m_interfaceFuture(m_interfacePromise.get_future()),
+          m_timeStamp(new HCNSTimeStamp()),
+          m_packageCounter(0),
           m_szRecvBuffer(new char[m_szRecvBufSize] {0})
 {
 #if _WIN32                          //Windows Enviorment
@@ -167,7 +174,7 @@ HelloServer<ClientType>::~HelloServer()
                     m_interfaceThread.join();
           }
 
-          /*add all the client socket in to the fd_read*/
+          /*delete client socket*/
           for (auto ib = this->m_clientVec.begin(); ib != this->m_clientVec.end(); ib++) {
 #if _WIN32                          //Windows Enviorment
                     ::shutdown((*ib)->getClientSocket(), SD_BOTH); //disconnect I/O
@@ -181,6 +188,7 @@ HelloServer<ClientType>::~HelloServer()
           }
           this->m_clientVec.clear();                                            //clean the std::vector container
 
+          /*delete server socket*/
 #if _WIN32                          //Windows Enviorment
           ::shutdown(this->m_server_socket, SD_BOTH); //disconnect I/O
           ::closesocket(this->m_server_socket);     //release socket completely!! 
@@ -189,6 +197,9 @@ HelloServer<ClientType>::~HelloServer()
           ::shutdown(this->m_server_socket, SHUT_RDWR);//disconnect I/O and keep recv buffer
           close(this->m_server_socket);                //release socket completely!! 
 #endif
+
+          /*delete server high resolution clock model*/
+          delete this->m_timeStamp;
 }
 
 /*------------------------------------------------------------------------------------------------------
@@ -434,7 +445,7 @@ void HelloServer<ClientType>::readMessageBody(
 
                     this->sendDataToClient((*_clientSocket)->getClientSocket(), logoutData, sizeof(_LogoutData));
           }
-          else {
+          else { 
                     _PackageHeader _error(sizeof(_PackageHeader), CMD_ERROR);
                     this->sendDataToClient((*_clientSocket)->getClientSocket(), &_error, sizeof(_PackageHeader));
           }
@@ -493,6 +504,24 @@ bool HelloServer<ClientType>::dataProcessingLayer(
 
                     /*the size of current message in szMsgBuffer is bigger than the package length(_header->_packageLength)*/
                     if (_header->_packageLength <= (*_clientSocket)->getMsgPtrPos()) {
+                              /*
+                              * add up to atomic package receive counter
+                              * 
+                              */
+                              ++this->m_packageCounter;
+                              if (this->m_timeStamp->getElaspsedTimeInsecond() >= 1LL) {
+                                        std::cout << "["<<this->m_timeStamp->printCurrentTime()<<"]: "<<
+                                                  "Client's Upload Bandwidth<Socket =" << static_cast<int>((*_clientSocket)->getClientSocket()) << ","
+                                                  << inet_ntoa((*_clientSocket)->getClientAddr()) << ":" << (*_clientSocket)->getClientPort() << "> "
+                                                  <<"Upload Speed = "<< (static_cast<double>(this->m_packageCounter) / this->m_timeStamp->getElaspsedTimeInsecond())
+                                                  <<" Packages/s" << std::endl;
+                                        
+                                        /*reset timer*/
+                                        this->m_timeStamp->updateTimer();
+
+                                        /*reset packageCounter*/
+                                        this->m_packageCounter = 0;
+                              }
 
                               //get message header to indentify commands    
                               //this->readMessageHeader(_clientSocket, reinterpret_cast<_PackageHeader*>(_header));
@@ -579,22 +608,28 @@ void HelloServer<ClientType>::serverMainFunction()
 
                               /*Detect client message input signal*/
                               if (FD_ISSET((*ib)->getClientSocket(), &m_fdread)) {
+
                                         /*
                                         *Entering main logic layer std::vector<_ClientSocket>::iterator as an input to the main system
                                         * retvalue: when functionlogicLayer return a value of false it means [CLIENT EXIT MANUALLY]
                                         * then you have to remove it from the container
                                         */
                                         if (!this->dataProcessingLayer(ib)) {
+                                                  /* 
+                                                   * delete _ClientSocket obj 
+                                                   * erase Current unavailable client's socket  
+                                                   */
+                                                  delete (*ib);                                                                                              
+                                                  ib = this->m_clientVec.erase(ib);                                                             
+                                                  
                                                   /*
-                                                  *There is a kind of sceniro which there is only one client who still remainning connection to the server
-                                                  */
-                                                  delete (*ib);                                                                                              //delete _ClientSocket obj
-                                                  ib = this->m_clientVec.erase(ib);                                                             //Erase Current unavailable client's socket 
+                                                    * There is a kind of sceniro when delete socket obj is completed
+                                                    * and there is only one client still remainning connection to the server
+                                                    */
                                                   if (ib == this->m_clientVec.end() || this->m_clientVec.size() <= 1) {	 //judge current container status
                                                             break;
                                                   }
                                         }
-
                               }
                               ib++;
                     }
