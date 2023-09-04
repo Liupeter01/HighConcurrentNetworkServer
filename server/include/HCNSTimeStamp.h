@@ -11,13 +11,13 @@ public:
 
 public:
           void updateTimer();
-          
-          template<typename TimeType>
-          long long getElaspsedTime() const;
-
+          std::time_t  printCurrentTime();
           long long getElaspsedTimeInMicrosecond() const;
           long long getElaspsedTimeInMillisecond() const;
-        
+          long long getElaspsedTimeInsecond() const;
+
+          template<typename TimeType> TimeType getElaspsedTime() const;
+
 protected:
           std::chrono::time_point<std::chrono::high_resolution_clock> m_start;
 };
