@@ -21,7 +21,11 @@ public:
                     :HelloServer<ClientType>(INADDR_ANY, _ipPort)
           {}
 
-          HelloServer(IN unsigned long _ipAddr, IN unsigned short _ipPort);
+          HelloServer(
+                    IN unsigned long _ipAddr,
+                    IN unsigned short _ipPort
+          );
+
           virtual ~HelloServer();
 
 public:
@@ -32,7 +36,11 @@ public:
           *                   2.[IN] int type
           *                   3.[IN] int protocol
           *------------------------------------------------------------------------------------------------------*/
-          static SOCKET createServerSocket(IN int af = AF_INET, IN int type = SOCK_STREAM, IN int protocol = IPPROTO_TCP) {
+          static SOCKET createServerSocket(
+                    IN int af = AF_INET,
+                    IN int type = SOCK_STREAM,
+                    IN int protocol = IPPROTO_TCP)
+          {
                     return ::socket(af, type, protocol);                              //Create server socket
           }
 
@@ -42,7 +50,10 @@ public:
           * @param :  1.[IN] SOCKET  serverSocket
           *                   2.[IN] int backlog
           *------------------------------------------------------------------------------------------------------*/
-          static int startListeningConnection(IN SOCKET serverSocket, IN int backlog = SOMAXCONN) {
+          static int startListeningConnection(
+                    IN SOCKET serverSocket,
+                    IN int backlog = SOMAXCONN)
+          {
                     return ::listen(serverSocket, backlog);
           }
 
@@ -52,7 +63,8 @@ public:
           * @param : int backlog
           * @retvalue : int
           *------------------------------------------------------------------------------------------------------*/
-          int startServerListening(int backlog = SOMAXCONN) {
+          int startServerListening(int backlog = SOMAXCONN) 
+          {
                     return startListeningConnection(this->m_server_socket, backlog);
           }
 
@@ -101,7 +113,11 @@ private:
                               3.[IN] int _szBufferSize
           *------------------------------------------------------------------------------------------------------*/
           template<typename T> 
-          void sendDataToClient(IN  SOCKET& _clientSocket, IN T* _szSendBuf, IN int _szBufferSize) {
+          void sendDataToClient(
+                    IN  SOCKET& _clientSocket, 
+                    IN T* _szSendBuf, 
+                    IN int _szBufferSize) 
+          {
                     ::send(_clientSocket, reinterpret_cast<const char*>(_szSendBuf), _szBufferSize, 0);
           }
 
@@ -113,7 +129,11 @@ private:
           * @retvalue: int
           *------------------------------------------------------------------------------------------------------*/
           template<typename T> 
-          int reciveDataFromClient(IN  SOCKET& _clientSocket, OUT T* _szRecvBuf, IN int _szBufferSize) {
+          int reciveDataFromClient(
+                    IN  SOCKET& _clientSocket, 
+                    OUT T* _szRecvBuf, 
+                    IN int _szBufferSize) 
+          {
                     return  ::recv(_clientSocket, reinterpret_cast<char*>(_szRecvBuf), _szBufferSize, 0);
           }
 
@@ -154,7 +174,9 @@ private:
                     2.[IN] unsigned short _port
 *------------------------------------------------------------------------------------------------------*/
 template<class ClientType>
-HelloServer<ClientType>::HelloServer(IN unsigned long _ipAddr,IN unsigned short _ipPort)
+HelloServer<ClientType>::HelloServer(
+          IN unsigned long _ipAddr,
+          IN unsigned short _ipPort)
           :m_interfaceFuture(m_interfacePromise.get_future()),
           m_timeStamp(new HCNSTimeStamp()),
           m_packageCounter(0),
@@ -319,11 +341,11 @@ void HelloServer<ClientType>::initServerAddressBinding(
 /*------------------------------------------------------------------------------------------------------
 *  Currently, serverMainFunction excute on a new thread
 * @function: virtual void serverInterfaceLayer
-* @param:   1.[IN] SOCKET & _client
-                    2.[IN OUT]  std::promise<bool> &interfacePromise
+* @param:   1.[IN OUT]  std::promise<bool> &interfacePromise
 *------------------------------------------------------------------------------------------------------*/
 template<class ClientType>
-void HelloServer<ClientType>::serverInterfaceLayer(IN OUT  std::promise<bool>& interfacePromise)
+void HelloServer<ClientType>::serverInterfaceLayer(
+          IN OUT  std::promise<bool>& interfacePromise)
 {
           while (true) {
                     char _Message[256]{ 0 };
@@ -353,30 +375,8 @@ void HelloServer<ClientType>::boardcastDataToAll(
           if (this->m_clientVec.size() <= 1) {                                  //there is only one or no client, so return
                     return;
           }
-          for (auto ib = this->m_clientVec.begin(); ib != this->m_clientVec.end(); ) {
-                    if (ib == this->m_clientVec.end()) {	 //judge current container status
-                              break;
-                    }
-                    if (ib->m_clientSocket != _currSocket) {
-                              this->sendDataToClient(
-                                        ib->m_clientSocket,
-                                        &_info,
-                                        sizeof(T)
-                              );
-                    }
-                    ib++;
-          }
-}
 
-template<> template<>
-void HelloServer<>::boardcastDataToAll<sockaddr_in>(
-          IN SOCKET& _currSocket,
-          IN sockaddr_in& _info)
-{
-          if (this->m_clientVec.size() <= 1) {                                  //there is only one or no client, so return
-                    return;
-          }
-          _BoardCast _boardPackage(inet_ntoa(_info.sin_addr), _info.sin_port);
+          _BoardCast _boardPackage(::inet_ntoa(_info.sin_addr), _info.sin_port);
           for (auto ib = this->m_clientVec.begin(); ib != this->m_clientVec.end(); ) {
                     if (ib == this->m_clientVec.end()) {	 //judge current container status
                               break;
@@ -394,8 +394,7 @@ void HelloServer<>::boardcastDataToAll<sockaddr_in>(
 
 /*------------------------------------------------------------------------------------------------------
 * @function:  void readMessageHeader
-* @param:
-                    1.[IN] typename std::vector<ClientType*>::iterator _clientSocket
+* @param:  1.[IN] typename std::vector<ClientType*>::iterator _clientSocket
                     2.[IN ] T* _header
 
 * @description: process clients' message header
@@ -419,8 +418,7 @@ void HelloServer<ClientType>::readMessageHeader(
 
 /*------------------------------------------------------------------------------------------------------
 * @function:  virtual void readMessageBody
-* @param:
-                    1.[IN] typename std::vector<ClientType*>::iterator _clientSocket
+* @param:  1.[IN] typename std::vector<ClientType*>::iterator _clientSocket
                     2.[IN] _PackageHeader* _buffer
 
 * @description:  process clients' message body
@@ -565,10 +563,7 @@ void HelloServer<ClientType>::serverMainFunction()
 {
           std::thread initInterface(&HelloServer::serverInterfaceLayer, this, std::ref(this->m_interfacePromise));
           this->m_interfaceThread.swap(initInterface);
-          if (initInterface.joinable()) {
-                    initInterface.join();
-          }
-         
+
           while (1) {
                     /*wait for future variable to change (if there is no signal then ignore it and do other task)*/
                     if (this->m_interfaceFuture.wait_for(std::chrono::microseconds(1)) == std::future_status::ready) {
@@ -599,6 +594,7 @@ void HelloServer<ClientType>::serverMainFunction()
                                         &_clientAddress
                               );
                               this->m_clientVec.push_back(new ClientType(_clientSocket, _clientAddress));
+
                               /*BoardCast Client's Connection to Other Clients (expect itself)*/
                               this->boardcastDataToAll(_clientSocket, _clientAddress);
                     }
@@ -634,5 +630,9 @@ void HelloServer<ClientType>::serverMainFunction()
                               ib++;
                     }
                     //process server's own business
+          }
+
+          if (initInterface.joinable()) {
+                    initInterface.join();
           }
 }
