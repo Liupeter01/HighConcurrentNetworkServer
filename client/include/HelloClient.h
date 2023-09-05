@@ -8,11 +8,14 @@
 #include<thread>
 
 #if _WIN32                          //Windows Enviorment
+/*break the limitaion of the select model size*/
+#define FD_SETSIZE 1024      
 #define _WINSOCK_DEPRECATED_NO_WARNINGS
 #define WIN32_LEAN_AND_MEAN
 #include<Windows.h>
 #include<WinSock2.h>
 #pragma comment(lib,"ws2_32.lib")
+#pragma warning(disable : 4005)
 
 #else                                   //Unix/Linux/Macos Enviorment
 
@@ -52,6 +55,8 @@ public:
                     IN unsigned short _ipPort
           );
 
+          SOCKET& getClientSocket();
+
           template<typename T> void sendDataToServer(
                     IN  SOCKET& _clientSocket,
                     IN T* _szSendBuf,
@@ -69,13 +74,13 @@ private:
           void initClientIOMultiplexing();
           bool initClientSelectModel();
 
-          void clientInterfaceLayer(
+          virtual void clientInterfaceLayer(
                     IN SOCKET& _client,
                     IN OUT  std::promise<bool>& interfacePromise
           );
 
           bool dataProcessingLayer();
-          bool readMessageHeader(IN OUT _PackageHeader* _header);
+          void readMessageHeader(IN _PackageHeader* _header);
           void readMessageBody(IN _PackageHeader* _buffer);
 
 private:
@@ -90,6 +95,14 @@ private:
           /*client socket and server address*/
           SOCKET m_client_socket;                           //client connection socket
           sockaddr_in m_server_address;
+
+          /*memory buffer*/
+          const unsigned int m_szRecvBufSize = 4096 * 1024;                  //4MB
+          std::shared_ptr<char> m_szRecvBuffer;                                       //server recive buffer(retrieve much data as possible from kernel)
+
+          const unsigned int m_szMsgBufSize = 4096 * 1024 * 10;           //40MB
+          unsigned long m_szMsgPtrPos = 0;                                               //message pointer location pos
+          std::shared_ptr<char> m_szMsgBuffer;                                        //find available data from server recive buffer
 
 #if _WIN32 
           WSADATA m_wsadata;
