@@ -152,7 +152,7 @@ private:
           timeval m_timeoutSetting{ 0/*0 s*/, 0 /*0 ms*/ };
 
           /*server 10KB memory buffer*/
-          const unsigned int m_szRecvBufSize = 1024 * 10;                       //10KB
+          const unsigned int m_szRecvBufSize = 4096 ;                           //10KB
           std::shared_ptr<char> m_szRecvBuffer;                                       //server recive buffer(retrieve much data as possible from kernel)
 
           /*clients info*/
