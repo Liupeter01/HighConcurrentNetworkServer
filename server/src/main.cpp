@@ -13,4 +13,5 @@ int main()
 
           /*Start Server Basic Logic Function To Handle Network Request*/
           server.serverMainFunction();
+          return 0;
 }
