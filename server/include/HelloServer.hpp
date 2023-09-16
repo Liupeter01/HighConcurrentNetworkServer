@@ -130,8 +130,9 @@ private:
           timeval m_timeoutSetting{ 0/*0 s*/, 0 /*0 ms*/ };
 
           /*server 10KB memory buffer*/
-          const size_t m_szRecvBufSize = 1024 * 10;                       //10KB
-          std::shared_ptr<char> m_szRecvBuffer;     //server recive buffer(retrieve much data as possible from kernel)
+
+          const unsigned int m_szRecvBufSize = 4096 ;                           //10KB
+          std::shared_ptr<char> m_szRecvBuffer;                                       //server recive buffer(retrieve much data as possible from kernel)
 
           /*clients info*/
           typename std::vector<ClientType*> m_clientVec;
@@ -582,8 +583,8 @@ bool HelloServer<ClientType>::dataProcessingLayer(
                               }
 
                               //get message header to indentify commands    
-                              this->readMessageHeader(_clientSocket, reinterpret_cast<_PackageHeader*>(_header));
-                              this->readMessageBody(_clientSocket, reinterpret_cast<_PackageHeader*>(_header));
+                              //this->readMessageHeader(_clientSocket, reinterpret_cast<_PackageHeader*>(_header));
+                              //this->readMessageBody(_clientSocket, reinterpret_cast<_PackageHeader*>(_header));
 
                               /* delete this message package and modify the array*/
 #if _WIN32     //Windows Enviorment
