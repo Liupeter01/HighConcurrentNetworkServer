@@ -18,3 +18,6 @@ client/build
 server/build
 /bin/x64/Release
 /temp/x64/Release
+/HCNSMemoryPool
+/server/src/HCNSMemoryPool.idb
+/server/src/HCNSMemoryPool.pdb
