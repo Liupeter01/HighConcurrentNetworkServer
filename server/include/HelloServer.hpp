@@ -1,13 +1,44 @@
 #pragma once
 #ifndef _HELLOSERVER_H_
 #define _HELLOSERVER_H_
-#include<DataPackage.h>
-#include<ClientSocket.h>
-#include<HCNSTimeStamp.h>
 #include<cassert>
 #include<vector>
 #include<future>
 #include<thread>
+
+#include<DataPackage.h>
+#include<ClientSocket.h>
+#include<HCNSTimeStamp.h>
+#include<HCNSMemoryManagement.hpp>
+
+#pragma comment(lib,"HCNSMemoryPool.lib")
+
+/*detour global memory allocation and deallocation functions*/
+void* operator new(size_t _size){
+          return MemoryManagement::getInstance().allocPool<void*>(_size);
+}
+
+void operator delete(void* _ptr){
+          if (_ptr != nullptr) {
+                    MemoryManagement::getInstance().freePool<void*>(_ptr);
+          }
+}
+
+void* operator new[](size_t _size){
+           return ::operator new(_size);
+}
+
+void operator delete[](void* _ptr){
+           operator delete(_ptr);
+}
+
+template<typename T> T memory_alloc(size_t _size){
+          return reinterpret_cast<T>(::malloc(_size));
+}
+
+template<typename T> void memory_free(T _ptr){
+          ::free(reinterpret_cast<void*>(_ptr));
+}
 
 template<class ClientType =  _ClientSocket> 
 class HelloServer{
@@ -152,6 +183,7 @@ private:
           timeval m_timeoutSetting{ 0/*0 s*/, 0 /*0 ms*/ };
 
           /*server 10KB memory buffer*/
+
           const unsigned int m_szRecvBufSize = 4096 ;                           //10KB
           std::shared_ptr<char> m_szRecvBuffer;                                       //server recive buffer(retrieve much data as possible from kernel)
 
@@ -177,10 +209,10 @@ template<class ClientType>
 HelloServer<ClientType>::HelloServer(
           IN unsigned long _ipAddr,
           IN unsigned short _ipPort)
-          :m_interfaceFuture(m_interfacePromise.get_future()),
+          : m_szRecvBuffer(new char[m_szRecvBufSize]),
           m_timeStamp(new HCNSTimeStamp()),
-          m_packageCounter(0),
-          m_szRecvBuffer(new char[m_szRecvBufSize] {0})
+          m_interfaceFuture(m_interfacePromise.get_future()),
+          m_packageCounter(0)
 {
 #if _WIN32                          //Windows Enviorment
           WSAStartup(MAKEWORD(2, 2), &m_wsadata);
