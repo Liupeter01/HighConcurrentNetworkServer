@@ -1,72 +1,71 @@
 #pragma once
 #ifndef _HELLOSERVER_H_
 #define _HELLOSERVER_H_
-#include<DataPackage.h>
-#include<ClientSocket.h>
-#include<HCNSTimeStamp.h>
 #include<cassert>
 #include<vector>
 #include<future>
 #include<thread>
 
+#include<DataPackage.h>
+#include<ClientSocket.h>
+#include<HCNSTimeStamp.h>
+#include<HCNSMemoryManagement.hpp>
+
+#pragma comment(lib,"HCNSMemoryPool.lib")
+
+/*detour global memory allocation and deallocation functions*/
+void* operator new(size_t _size)
+{
+          return MemoryManagement::getInstance().allocPool<void*>(_size);
+}
+
+void operator delete(void* _ptr)
+{
+          if (_ptr != nullptr) 
+          {
+                    MemoryManagement::getInstance().freePool<void*>(_ptr);
+          }
+}
+
+void* operator new[](size_t _size)
+{
+           return ::operator new(_size);
+}
+
+void operator delete[](void* _ptr)
+{
+           operator delete(_ptr);
+}
+
+template<typename T> T memory_alloc(size_t _size)
+{
+          return reinterpret_cast<T>(::malloc(_size));
+}
+
+template<typename T> void memory_free(T _ptr)
+{
+          ::free(reinterpret_cast<void*>(_ptr));
+}
+
 template<class ClientType =  _ClientSocket> 
 class HelloServer{
 public:
-          HelloServer()
-                    :m_server_address{ 0 },
-                    m_server_socket(INVALID_SOCKET)
-          { }
-
-          HelloServer(IN unsigned short _ipPort)
-                    :HelloServer<ClientType>(INADDR_ANY, _ipPort)
-          {}
-
-          HelloServer(
-                    IN unsigned long _ipAddr,
-                    IN unsigned short _ipPort
-          );
-
+          HelloServer();
+          HelloServer(IN unsigned short _ipPort);
+          HelloServer(IN unsigned long _ipAddr, IN unsigned short _ipPort);
           virtual ~HelloServer();
 
 public:
-          /*------------------------------------------------------------------------------------------------------
-          * use socket api to create a ipv4 and tcp protocol socket
-          * @function: static SOCKET createServerSocket
-          * @param :  1.[IN] int af
-          *                   2.[IN] int type
-          *                   3.[IN] int protocol
-          *------------------------------------------------------------------------------------------------------*/
           static SOCKET createServerSocket(
                     IN int af = AF_INET,
                     IN int type = SOCK_STREAM,
-                    IN int protocol = IPPROTO_TCP)
-          {
-                    return ::socket(af, type, protocol);                              //Create server socket
-          }
+                    IN int protocol = IPPROTO_TCP
+          );
 
-          /*------------------------------------------------------------------------------------------------------
-          * use socket api to create a ipv4 and tcp protocol socket
-          * @function: static SOCKET createServerSocket
-          * @param :  1.[IN] SOCKET  serverSocket
-          *                   2.[IN] int backlog
-          *------------------------------------------------------------------------------------------------------*/
           static int startListeningConnection(
                     IN SOCKET serverSocket,
-                    IN int backlog = SOMAXCONN)
-          {
-                    return ::listen(serverSocket, backlog);
-          }
-
-          /*------------------------------------------------------------------------------------------------------
-          * start server listening
-          * @function:  int startServerListening
-          * @param : int backlog
-          * @retvalue : int
-          *------------------------------------------------------------------------------------------------------*/
-          int startServerListening(int backlog = SOMAXCONN) 
-          {
-                    return startListeningConnection(this->m_server_socket, backlog);
-          }
+                    IN int backlog = SOMAXCONN
+          );
 
           static bool acceptClientConnection(
                     IN SOCKET serverSocket,
@@ -74,18 +73,15 @@ public:
                     OUT SOCKADDR_IN* _clientAddr
           );
 
+          int startServerListening(int backlog = SOMAXCONN);
           void serverMainFunction();
 
 private:
-          void initServerAddressBinding(
-                    unsigned long _ipAddr,
-                    unsigned short _port
-          );
 
+          void initServerAddressBinding(unsigned long _ipAddr, unsigned short _port);
           void initServerIOMultiplexing();
           bool initServerSelectModel();
 
-          
           bool dataProcessingLayer(IN typename  std::vector<ClientType*>::iterator  _clientSocket);
           void serverInterfaceLayer(IN OUT std::promise<bool>& interfacePromise);
           int getlargestSocketValue();
@@ -106,36 +102,18 @@ private:
           );
 
 private:
-          /*------------------------------------------------------------------------------------------------------
-          * @function: void sendDataToClient
-          * @param : 1.[IN]   SOCKET& _clientSocket,
-                              2.[IN]  T* _szSendBuf,
-                              3.[IN] int _szBufferSize
-          *------------------------------------------------------------------------------------------------------*/
-          template<typename T> 
-          void sendDataToClient(
-                    IN  SOCKET& _clientSocket, 
-                    IN T* _szSendBuf, 
-                    IN int _szBufferSize) 
-          {
-                    ::send(_clientSocket, reinterpret_cast<const char*>(_szSendBuf), _szBufferSize, 0);
-          }
 
-          /*------------------------------------------------------------------------------------------------------
-          * @function: void reciveDataFromClient
-          * @param : 1. [IN]  SOCKET&  _clientSocket,
-                              2. [OUT]  T* _szRecvBuf,
-                              3. [IN] int &_szBufferSize
-          * @retvalue: int
-          *------------------------------------------------------------------------------------------------------*/
-          template<typename T> 
-          int reciveDataFromClient(
-                    IN  SOCKET& _clientSocket, 
-                    OUT T* _szRecvBuf, 
-                    IN int _szBufferSize) 
-          {
-                    return  ::recv(_clientSocket, reinterpret_cast<char*>(_szRecvBuf), _szBufferSize, 0);
-          }
+          template<typename T> void sendDataToClient(
+                    IN  SOCKET& _clientSocket,
+                    IN T* _szSendBuf,
+                    IN int _szBufferSize
+          );
+
+          template<typename T> int reciveDataFromClient(
+                    IN  SOCKET& _clientSocket,
+                    OUT T* _szRecvBuf,
+                    IN int _szBufferSize
+          );
 
 private:
           /*server interface thread*/
@@ -152,7 +130,8 @@ private:
           timeval m_timeoutSetting{ 0/*0 s*/, 0 /*0 ms*/ };
 
           /*server 10KB memory buffer*/
-          const unsigned int m_szRecvBufSize = 1024 * 10;                       //10KB
+
+          const unsigned int m_szRecvBufSize = 4096 ;                           //10KB
           std::shared_ptr<char> m_szRecvBuffer;                                       //server recive buffer(retrieve much data as possible from kernel)
 
           /*clients info*/
@@ -168,19 +147,30 @@ private:
 };
 #endif
 
+template<class ClientType>
+HelloServer<ClientType>::HelloServer()
+          :m_server_address{ 0 },
+          m_server_socket(INVALID_SOCKET)
+{ 
+}
+
+template<class ClientType>
+HelloServer<ClientType>::HelloServer(IN unsigned short _ipPort)
+          :HelloServer(INADDR_ANY, _ipPort)
+{
+}
+
 /*------------------------------------------------------------------------------------------------------
 * @function: HelloServer::HelloServer
 * @param : 1.[IN] unsigned long _ipAddr
                     2.[IN] unsigned short _port
 *------------------------------------------------------------------------------------------------------*/
 template<class ClientType>
-HelloServer<ClientType>::HelloServer(
-          IN unsigned long _ipAddr,
-          IN unsigned short _ipPort)
-          :m_interfaceFuture(m_interfacePromise.get_future()),
+HelloServer<ClientType>::HelloServer(IN unsigned long _ipAddr, IN unsigned short _ipPort)
+          : m_szRecvBuffer(new char[m_szRecvBufSize]),
           m_timeStamp(new HCNSTimeStamp()),
-          m_packageCounter(0),
-          m_szRecvBuffer(new char[m_szRecvBufSize] {0})
+          m_interfaceFuture(m_interfacePromise.get_future()),
+          m_packageCounter(0)
 {
 #if _WIN32                          //Windows Enviorment
           WSAStartup(MAKEWORD(2, 2), &m_wsadata);
@@ -222,6 +212,43 @@ HelloServer<ClientType>::~HelloServer()
 
           /*delete server high resolution clock model*/
           delete this->m_timeStamp;
+}
+
+/*------------------------------------------------------------------------------------------------------
+* use socket api to create a ipv4 and tcp protocol socket
+* @function: static SOCKET createServerSocket
+* @param :  1.[IN] int af
+*                   2.[IN] int type
+*                   3.[IN] int protocol
+*------------------------------------------------------------------------------------------------------*/
+template<class ClientType>
+SOCKET HelloServer<ClientType>::createServerSocket(IN int af, IN int type, IN int protocol)
+{
+          return ::socket(af, type, protocol);                              //Create server socket
+}
+
+/*------------------------------------------------------------------------------------------------------
+* use socket api to create a ipv4 and tcp protocol socket
+* @function: static SOCKET createServerSocket
+* @param :  1.[IN] SOCKET  serverSocket
+*                   2.[IN] int backlog
+*------------------------------------------------------------------------------------------------------*/
+template<class ClientType>
+int HelloServer<ClientType>::startListeningConnection(IN SOCKET serverSocket, IN int backlog)
+{
+          return ::listen(serverSocket, backlog);
+}
+
+/*------------------------------------------------------------------------------------------------------
+* start server listening
+* @function:  int startServerListening
+* @param : int backlog
+* @retvalue : int
+*------------------------------------------------------------------------------------------------------*/
+template<class ClientType>
+int HelloServer<ClientType>::startServerListening(int backlog)
+{
+          return startListeningConnection(this->m_server_socket, backlog);
 }
 
 /*------------------------------------------------------------------------------------------------------
@@ -347,7 +374,8 @@ template<class ClientType>
 void HelloServer<ClientType>::serverInterfaceLayer(
           IN OUT  std::promise<bool>& interfacePromise)
 {
-          while (true) {
+          while (true) 
+          {
                     char _Message[256]{ 0 };
                     std::cin.getline(_Message, 256);
                     if (!strcmp(_Message, "exit")) {
@@ -390,6 +418,37 @@ void HelloServer<ClientType>::boardcastDataToAll(
                     }
                     ib++;
           }
+}
+
+/*------------------------------------------------------------------------------------------------------
+* @function: void sendDataToClient
+* @param : 1.[IN]   SOCKET& _clientSocket,
+                    2.[IN]  T* _szSendBuf,
+                    3.[IN] int _szBufferSize
+*------------------------------------------------------------------------------------------------------*/
+template<class ClientType> template<typename T>
+void HelloServer<ClientType>::sendDataToClient(
+          IN  SOCKET& _clientSocket,
+          IN T* _szSendBuf,
+          IN int _szBufferSize)
+{
+          ::send(_clientSocket, reinterpret_cast<const char*>(_szSendBuf), _szBufferSize, 0);
+}
+
+/*------------------------------------------------------------------------------------------------------
+* @function: void reciveDataFromClient
+* @param : 1. [IN]  SOCKET&  _clientSocket,
+                    2. [OUT]  T* _szRecvBuf,
+                    3. [IN] int &_szBufferSize
+* @retvalue: int
+*------------------------------------------------------------------------------------------------------*/
+template<class ClientType> template<typename T>
+int HelloServer<ClientType>::reciveDataFromClient(
+          IN  SOCKET& _clientSocket,
+          OUT T* _szRecvBuf,
+          IN int _szBufferSize)
+{
+          return  ::recv(_clientSocket, reinterpret_cast<char*>(_szRecvBuf), _szBufferSize, 0);
 }
 
 /*------------------------------------------------------------------------------------------------------
@@ -501,13 +560,15 @@ bool HelloServer<ClientType>::dataProcessingLayer(
                     ));
 
                     /*the size of current message in szMsgBuffer is bigger than the package length(_header->_packageLength)*/
-                    if (_header->_packageLength <= (*_clientSocket)->getMsgPtrPos()) {
+                    if (_header->_packageLength <= (*_clientSocket)->getMsgPtrPos()) 
+                    {
                               /*
                               * add up to atomic package receive counter
                               * 
                               */
                               ++this->m_packageCounter;
-                              if (this->m_timeStamp->getElaspsedTimeInsecond() >= 1LL) {
+                              if (this->m_timeStamp->getElaspsedTimeInsecond() >= 1LL) 
+                              {
                                         std::cout << "["<<this->m_timeStamp->printCurrentTime()<<"]: "<<
                                                   "Client's Upload Bandwidth<Socket =" << static_cast<int>((*_clientSocket)->getClientSocket()) << ","
                                                   << inet_ntoa((*_clientSocket)->getClientAddr()) << ":" << (*_clientSocket)->getClientPort() << "> "
@@ -522,13 +583,13 @@ bool HelloServer<ClientType>::dataProcessingLayer(
                               }
 
                               //get message header to indentify commands    
-                              this->readMessageHeader(_clientSocket, reinterpret_cast<_PackageHeader*>(_header));
-                              this->readMessageBody(_clientSocket, reinterpret_cast<_PackageHeader*>(_header));
+                              //this->readMessageHeader(_clientSocket, reinterpret_cast<_PackageHeader*>(_header));
+                              //this->readMessageBody(_clientSocket, reinterpret_cast<_PackageHeader*>(_header));
 
                               /* delete this message package and modify the array*/
 #if _WIN32     //Windows Enviorment
                               memcpy_s(
-                                        (*_clientSocket)->getMsgBufferHead(),                                            //the head of message buffer array
+                                        (*_clientSocket)->getMsgBufferHead(),                                                     //the head of message buffer array
                                         (*_clientSocket)->getBufFullSpace(),
                                         (*_clientSocket)->getMsgBufferHead() + _header->_packageLength,       //the next serveral potential packages position
                                         (*_clientSocket)->getMsgPtrPos() - _header->_packageLength                  //the size of next serveral potential package
@@ -564,10 +625,13 @@ void HelloServer<ClientType>::serverMainFunction()
           std::thread initInterface(&HelloServer::serverInterfaceLayer, this, std::ref(this->m_interfacePromise));
           this->m_interfaceThread.swap(initInterface);
 
-          while (1) {
+          while (1) 
+          {
                     /*wait for future variable to change (if there is no signal then ignore it and do other task)*/
-                    if (this->m_interfaceFuture.wait_for(std::chrono::microseconds(1)) == std::future_status::ready) {
-                              if (!this->m_interfaceFuture.get()) {
+                    if (this->m_interfaceFuture.wait_for(std::chrono::microseconds(1)) == std::future_status::ready) 
+                    {
+                              if (!this->m_interfaceFuture.get()) 
+                              {
                                         break;
                               }
                     }
@@ -600,17 +664,20 @@ void HelloServer<ClientType>::serverMainFunction()
                     }
 
                     //[POTIENTAL BUG HERE!]: why _clientaddr's dtor was deployed
-                    for (auto ib = this->m_clientVec.begin(); ib != this->m_clientVec.end();) {
+                    for (auto ib = this->m_clientVec.begin(); ib != this->m_clientVec.end();) 
+                    {
 
                               /*Detect client message input signal*/
-                              if (FD_ISSET((*ib)->getClientSocket(), &m_fdread)) {
+                              if (FD_ISSET((*ib)->getClientSocket(), &m_fdread)) 
+                              {
 
                                         /*
                                         *Entering main logic layer std::vector<_ClientSocket>::iterator as an input to the main system
                                         * retvalue: when functionlogicLayer return a value of false it means [CLIENT EXIT MANUALLY]
                                         * then you have to remove it from the container
                                         */
-                                        if (!this->dataProcessingLayer(ib)) {
+                                        if (!this->dataProcessingLayer(ib)) 
+                                        {
                                                   /* 
                                                    * delete _ClientSocket obj 
                                                    * erase Current unavailable client's socket  
@@ -621,8 +688,9 @@ void HelloServer<ClientType>::serverMainFunction()
                                                   /*
                                                     * There is a kind of sceniro when delete socket obj is completed
                                                     * and there is only one client still remainning connection to the server
+                                                    * judge current container status
                                                     */
-                                                  if (ib == this->m_clientVec.end() || this->m_clientVec.size() <= 1) {	 //judge current container status
+                                                  if (ib == this->m_clientVec.end() || this->m_clientVec.size() <= 1) {	
                                                             break;
                                                   }
                                         }

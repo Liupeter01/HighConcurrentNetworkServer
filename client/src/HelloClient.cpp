@@ -285,8 +285,8 @@ bool HelloClient::dataProcessingLayer()
                     /*the size of current message in szMsgBuffer is bigger than the package length(_header->_packageLength)*/
                     if (_header->_packageLength <= this->m_szMsgPtrPos) {
                               //get message header to indentify commands
-                              this->readMessageHeader(reinterpret_cast<_PackageHeader*>(_header)); 
-                              this->readMessageBody(reinterpret_cast<_PackageHeader*>(_header));
+                              //this->readMessageHeader(reinterpret_cast<_PackageHeader*>(_header)); 
+                              //this->readMessageBody(reinterpret_cast<_PackageHeader*>(_header));
 
                               /*
                                * delete this message package and modify the array
