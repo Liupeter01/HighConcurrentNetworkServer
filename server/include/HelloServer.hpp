@@ -124,10 +124,12 @@ private:
           /*select network model*/
           SOCKET m_server_socket;                           //server listening socket
           sockaddr_in m_server_address;
+
           fd_set m_fdread;
           fd_set m_fdwrite; 
           fd_set m_fdexception;
           timeval m_timeoutSetting{ 0/*0 s*/, 0 /*0 ms*/ };
+          SOCKET m_largest_socket;                          //find the largest socket number for select model
 
           /*server 10KB memory buffer*/
 
@@ -288,15 +290,7 @@ bool HelloServer<ClientType>::acceptClientConnection(
 template<class ClientType>
 int HelloServer<ClientType>::getlargestSocketValue()
 {
-          SOCKET _largestSocket = this->m_server_socket;  //currently, the number of server socket is the largest
-
-          /*travelersal the client socket container and try to find out the largest socket number! */
-          for (auto ib = this->m_clientVec.begin(); ib != this->m_clientVec.end(); ib++) {
-                    if (_largestSocket < (*ib)->getClientSocket()) {
-                              _largestSocket = (*ib)->getClientSocket();
-                    }
-          }
-          return ((static_cast<int>(_largestSocket))) + 1;
+          return ((static_cast<int>(this->m_largest_socket))) + 1;
 }
 
 /*------------------------------------------------------------------------------------------------------
@@ -314,9 +308,14 @@ void HelloServer<ClientType>::initServerIOMultiplexing()
           FD_SET(this->m_server_socket, &this->m_fdwrite);                          //Insert Server Socket into fd_write
           FD_SET(this->m_server_socket, &this->m_fdexception);                  //Insert Server Socket into fd_exception
 
+          this->m_largest_socket = this->m_server_socket;                                 //currently, the number of server socket is the largest
+
           /*add all the client socket in to the fd_read*/
           for (auto ib = this->m_clientVec.begin(); ib != this->m_clientVec.end(); ib++) {
                     FD_SET((*ib)->getClientSocket(), &m_fdread);
+                    if (this->m_largest_socket < (*ib)->getClientSocket()) {
+                              this->m_largest_socket = (*ib)->getClientSocket();
+                    }
           }
 }
 
