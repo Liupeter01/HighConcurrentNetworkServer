@@ -1,4 +1,4 @@
-#include<HelloServer.hpp>
+#include<HCNSTcpServer.hpp>
 
 int main() 
 {
@@ -6,7 +6,7 @@ int main()
           *Server IP Address = INADDR_ANY ; Port = 9876
           *Start Server Listening and Setup Listening Queue Number
           */
-          HelloServer<_ClientSocket> server(4567);
+          HCNSTcpServer<_ClientSocket> server(4567);
 
           /*Start Server Listening and Setup Listening Queue Number = SOMAXCONN*/
           server.startServerListening();
