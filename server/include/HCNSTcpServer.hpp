@@ -2,7 +2,6 @@
 #ifndef _HCNSTCPSERVER_H_
 #define _HCNSTCPSERVER_H_
 #include<HCNSCellServer.hpp>
-#include<algorithm>
 
 template<class ClientType = _ClientSocket>
 class HCNSTcpServer :public INetEvent<ClientType>
@@ -61,7 +60,7 @@ private:
 private:
           /*server interface symphoare control and thread creation*/
           std::promise<bool> m_interfacePromise;
-          std::future<bool> m_interfaceFuture;
+          std::shared_future<bool> m_interfaceFuture;
           std::thread m_interfaceThread;
 
           /*server clientConnection Thread(Producer)*/
@@ -81,6 +80,7 @@ private:
           std::vector<HCNSCellServer<ClientType>*> m_cellServer;
 
           /*HCNSCellServer should record all the connection*/
+          std::mutex m_clientRWLock;
           typename std::vector<ClientType*> m_clientInfo;
 
           /*Server High Resolution Clock Model(How Many Packages are recieved per second)*/
@@ -110,7 +110,8 @@ template<class ClientType>
 HCNSTcpServer<ClientType>::HCNSTcpServer(
           IN unsigned long _ipAddr, 
           IN unsigned short _ipPort)
-          : m_timeStamp(new HCNSTimeStamp())
+          : m_timeStamp(new HCNSTimeStamp()),
+          m_interfaceFuture(this->m_interfacePromise.get_future())
 {
 #if _WIN32                          //Windows Enviorment
           WSAStartup(MAKEWORD(2, 2), &m_wsadata);
@@ -208,11 +209,17 @@ void HCNSTcpServer<ClientType>::serverMainFunction()
           );
 
           for (int i = 0; i < 4; ++i) {
-                    HCNSCellServer<ClientType>* _cellServer(
-                              new HCNSCellServer<ClientType>(this->m_server_socket, this->m_server_address, this)
+                    this->m_cellServer.push_back(
+                              new HCNSCellServer<ClientType>(
+                                        this->m_server_socket,
+                                        this->m_server_address,
+                                        this->m_interfaceFuture,
+                                        this
+                              )
                     );
-                    this->m_cellServer.push_back(_cellServer);
-                    _cellServer->startCellServer();
+          }
+          for (auto ib = this->m_cellServer.begin(); ib != this->m_cellServer.end(); ib++) {
+                    (*ib)->startCellServer();
           }
 }
 
@@ -322,6 +329,7 @@ void HCNSTcpServer<ClientType>::clientConnectionThread()
           {
                     FD_ZERO(&this->m_fdread);                                                               //clean fd_read
                     FD_SET(this->m_server_socket, &this->m_fdread);                           //Insert Server Socket into fd_read
+                   
                     /*the number of server socket is the largest in client connection thread(producer)*/
                     if (this->initServerSelectModel(this->m_server_socket)) {
                               this->shutdownTcpServer();                 //when select model fails then shutdown server
@@ -428,16 +436,23 @@ void HCNSTcpServer<ClientType>::shutdownTcpServer()
 
 /*------------------------------------------------------------------------------------------------------
 * virtual function: client terminate connection
-* @function:  void clientOnLeave(ClientType * _pclient)
-* @param : ClientType * _pclient
+* @function:  void clientOnLeave(ClientType* _pclient)
+* @param :  ClientType* _pclient
 *------------------------------------------------------------------------------------------------------*/
 template<class ClientType>
 void HCNSTcpServer<ClientType>::clientOnLeave(ClientType* _pclient)
 {
-          /*find target client structure and dealloc it's memory*/
-          auto _target = std::find(this->m_clientInfo.begin(), this->m_clientInfo.end(), _pclient);
-          delete (*_target);
-
-          /* erase Current unavailable client's socket */
-          this->m_clientInfo.erase(_target);
+          /*
+          * in clientOnLeave function, the scale of the lock have to cover the all block of the code
+          * in this sceniro we have to use std::vector::size() function instead of using the increment of std::vector<ClientType*>::iterator
+          */
+          std::lock_guard<std::mutex> _lckg(this->m_clientRWLock);
+          for (int i = 0; i < this->m_clientInfo.size(); ++i) {
+                    if (this->m_clientInfo[i] == _pclient) {
+                              typename std::vector<ClientType*>::iterator iter = this->m_clientInfo.begin() + i;
+                              if (iter != this->m_clientInfo.end()) {
+                                        this->m_clientInfo.erase(iter);
+                              }
+                    }
+          }
 }

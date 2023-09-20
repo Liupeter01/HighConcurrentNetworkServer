@@ -55,6 +55,7 @@ public:
           HCNSCellServer(
                     IN const SOCKET& _serverSocket, 
                     IN const SOCKADDR_IN& _serverAddr,
+                    IN std::shared_future<bool>& _future,
                     IN INetEvent<ClientType>* _netEvent
           );
 
@@ -74,7 +75,7 @@ private:
           bool clientDataProcessingLayer(
                     IN typename std::vector<ClientType*>::iterator _clientSocket
           );
-          void clientRequestProcessingThread();
+          void clientRequestProcessingThread(IN std::shared_future<bool>& _future);
           void shutdownCellServer();
 
 private:
@@ -101,6 +102,9 @@ private:
           );
 
 private:
+          /*When HCNSTcpServer set promise as false, all cell server should terminate*/
+          std::shared_future<bool> m_interfaceFuture;
+
           /*server clientRequestProcessing Thread(Consumer)*/
           std::thread m_processingThread;
 
@@ -127,7 +131,7 @@ private:
            * this client buffer just for temporary storage and all the client should be transfer to clientVec
           */
           std::mutex m_queueMutex;
-          typename std::queue<ClientType*> m_temporaryClientBuffer;
+          typename std::vector<ClientType*> m_temporaryClientBuffer;
 
           /*every cell server thread have one client array(permanent storage)*/
           typename std::vector<ClientType*> m_clientVec;
@@ -152,9 +156,11 @@ template<class ClientType>
 HCNSCellServer<ClientType>::HCNSCellServer(
           IN const SOCKET& _serverSocket,
           IN const SOCKADDR_IN& _serverAddr,
-          IN INetEvent<ClientType> *_netEvent)
+          IN std::shared_future<bool>& _future,
+          IN INetEvent<ClientType>* _netEvent)
           : m_server_socket(_serverSocket),
           m_szRecvBuffer(new char[m_szRecvBufSize]),
+          m_interfaceFuture(_future),
           m_pNetEvent(_netEvent),
           m_packageCounter(0)
 {
@@ -190,7 +196,7 @@ template<class ClientType>
 void HCNSCellServer<ClientType>::startCellServer()
 {
           this->m_processingThread = std::thread(
-                    std::mem_fn(&HCNSCellServer<ClientType>::clientRequestProcessingThread), this
+                    std::mem_fn(&HCNSCellServer<ClientType>::clientRequestProcessingThread), this, std::ref(this->m_interfaceFuture)
           );
 }
 
@@ -215,7 +221,7 @@ template<class ClientType>
 void HCNSCellServer<ClientType>::pushTemproaryClient(ClientType* _pclient)
 {
           std::lock_guard<std::mutex> _lckg(this->m_queueMutex);
-          this->m_temporaryClientBuffer.push(_pclient);
+          this->m_temporaryClientBuffer.push_back(_pclient);
 }
 
 /*------------------------------------------------------------------------------------------------------
@@ -388,22 +394,28 @@ bool HCNSCellServer<ClientType>::clientDataProcessingLayer(
 
 /*------------------------------------------------------------------------------------------------------
 * processing clients request(Consumer Thread)
-* @function: void clientRequestProcessingThread
+* @function: void clientRequestProcessingThread(IN std::shared_future<bool>& _future)
+* @param: IN std::shared_future<bool>& _future
 *------------------------------------------------------------------------------------------------------*/
 template<class ClientType>
-void HCNSCellServer<ClientType>::clientRequestProcessingThread()
+void HCNSCellServer<ClientType>::clientRequestProcessingThread(
+          IN std::shared_future<bool>& _future)
 {
           while (true) 
           {
+                    if (_future.wait_for(std::chrono::microseconds(1)) == std::future_status::ready) {
+                              if (!_future.get()) {
+                                        break;
+                              }
+                    }
                     /*size of temporary buffer is valid*/
                     if (this->m_temporaryClientBuffer.size()) 
                     {
-                              while (!this->m_temporaryClientBuffer.empty())
-                              {
-                                        std::lock_guard<std::mutex> _lckg(this->m_queueMutex);
-                                        this->m_clientVec.push_back(this->m_temporaryClientBuffer.front());
-                                        this->m_temporaryClientBuffer.pop();
+                              std::lock_guard<std::mutex> _lckg(this->m_queueMutex);
+                              for (auto ib = this->m_temporaryClientBuffer.begin(); ib != this->m_temporaryClientBuffer.end(); ++ib) {
+                                        this->m_clientVec.push_back(*ib);
                               }
+                              this->m_temporaryClientBuffer.clear();
                     }
 
                     /*
@@ -437,6 +449,8 @@ void HCNSCellServer<ClientType>::clientRequestProcessingThread()
                                         {
                                                   /*notify the tcp server to delete it from the container and dealloc it's memory*/
                                                   this->m_pNetEvent->clientOnLeave((*ib));
+
+                                                  delete (*ib);
 
                                                   /* erase Current unavailable client's socket(no longer needs to dealloc it's memory)*/
                                                   ib = this->m_clientVec.erase(ib);
