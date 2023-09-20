@@ -7,10 +7,13 @@
 #include<thread>
 
 #include<DataPackage.h>
-#include<ClientSocket.h>
 #include<HCNSTimeStamp.h>
+#include<HCNSINetEvent.hpp>
 #include<HCNSMemoryManagement.hpp>
+
+#if _WIN32
 #pragma comment(lib,"HCNSMemoryPool.lib")
+#endif
 
 /*detour global memory allocation and deallocation functions*/
 void* operator new(size_t _size)
@@ -51,7 +54,8 @@ public:
           HCNSCellServer();
           HCNSCellServer(
                     IN const SOCKET& _serverSocket, 
-                    IN const SOCKADDR_IN& _serverAddr
+                    IN const SOCKADDR_IN& _serverAddr,
+                    IN INetEvent<ClientType>* _netEvent
           );
 
           virtual ~HCNSCellServer();
@@ -128,23 +132,30 @@ private:
           /*every cell server thread have one client array(permanent storage)*/
           typename std::vector<ClientType*> m_clientVec;
 
-          std::atomic<unsigned long long> m_packageCounter;                //recv packages counter
+          /*record packages received in this CellServer obj*/
+          std::atomic<unsigned long long> m_packageCounter;
+
+          /*cell server obj pass a client on leave signal to the tcpserver*/
+          typename INetEvent<ClientType>* m_pNetEvent;
 };
 #endif
 
 template<class ClientType>
 HCNSCellServer<ClientType>::HCNSCellServer()
           :m_server_address{ 0 },
-          m_server_socket(INVALID_SOCKET)
+          m_server_socket(INVALID_SOCKET),
+          m_pNetEvent(nullptr)
 {
 }
 
 template<class ClientType>
 HCNSCellServer<ClientType>::HCNSCellServer(
           IN const SOCKET& _serverSocket,
-          IN const SOCKADDR_IN& _serverAddr)
+          IN const SOCKADDR_IN& _serverAddr,
+          IN INetEvent<ClientType> *_netEvent)
           : m_server_socket(_serverSocket),
           m_szRecvBuffer(new char[m_szRecvBufSize]),
+          m_pNetEvent(_netEvent),
           m_packageCounter(0)
 {
 #if _WIN32    
@@ -379,7 +390,7 @@ bool HCNSCellServer<ClientType>::clientDataProcessingLayer(
 }
 
 /*------------------------------------------------------------------------------------------------------
-* 
+* processing clients request(Consumer Thread)
 * @function: void clientRequestProcessingThread
 *------------------------------------------------------------------------------------------------------*/
 template<class ClientType>
@@ -425,17 +436,15 @@ void HCNSCellServer<ClientType>::clientRequestProcessingThread()
                                         */
                                         if (!this->clientDataProcessingLayer(ib))
                                         {
-                                                  /*
-                                                   * delete _ClientSocket obj
-                                                   * erase Current unavailable client's socket
-                                                   */
-                                                  delete (*ib);
+                                                  /*notify the tcp server to delete it from the container and dealloc it's memory*/
+                                                  this->m_pNetEvent->clientOnLeave((*ib));
+
+                                                  /* erase Current unavailable client's socket(no longer needs to dealloc it's memory)*/
                                                   ib = this->m_clientVec.erase(ib);
 
                                                   /*
                                                     * There is a kind of sceniro when delete socket obj is completed
                                                     * and there is only one client still remainning connection to the server
-                                                    * judge current container status
                                                     */
                                                   if (ib == this->m_clientVec.end() || this->m_clientVec.size() <= 1) {
                                                             break;
@@ -547,6 +556,7 @@ void HCNSCellServer<ClientType>::shutdownCellServer()
           -------------------------------------------------------------------------*/
           for (auto ib = this->m_clientVec.begin(); ib != this->m_clientVec.end(); ib++) 
           {
+                    this->m_pNetEvent->clientOnLeave((*ib));
 #if _WIN32
                     ::shutdown((*ib)->getClientSocket(), SD_BOTH);                        //disconnect I/O
                     ::closesocket((*ib)->getClientSocket());                                        //release socket completely!! 

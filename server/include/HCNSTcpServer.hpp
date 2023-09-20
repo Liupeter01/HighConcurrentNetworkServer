@@ -2,9 +2,10 @@
 #ifndef _HCNSTCPSERVER_H_
 #define _HCNSTCPSERVER_H_
 #include<HCNSCellServer.hpp>
+#include<algorithm>
 
 template<class ClientType = _ClientSocket>
-class HCNSTcpServer 
+class HCNSTcpServer :public INetEvent<ClientType>
 {
 public:
           HCNSTcpServer();
@@ -53,6 +54,9 @@ private:
           void getClientsUploadSpeed();
 
           void shutdownTcpServer();
+
+private:
+          virtual void clientOnLeave(ClientType* _pclient);
 
 private:
           /*server interface symphoare control and thread creation*/
@@ -205,7 +209,7 @@ void HCNSTcpServer<ClientType>::serverMainFunction()
 
           for (int i = 0; i < 4; ++i) {
                     HCNSCellServer<ClientType>* _cellServer(
-                              new HCNSCellServer<ClientType>(this->m_server_socket, this->m_server_address)
+                              new HCNSCellServer<ClientType>(this->m_server_socket, this->m_server_address, this)
                     );
                     this->m_cellServer.push_back(_cellServer);
                     _cellServer->startCellServer();
@@ -385,13 +389,17 @@ void HCNSTcpServer<ClientType>::getClientsUploadSpeed()
 template<class ClientType>
 void HCNSTcpServer<ClientType>::shutdownTcpServer()
 {
-          /*-------------------------------------------------------------------------
-          * close all the clients' connection in this cell server
-          -------------------------------------------------------------------------*/
+          /*close all the clients' connection in this cell server*/
           for (auto ib = this->m_cellServer.begin(); ib != this->m_cellServer.end(); ib++){
                     delete (*ib);
           }
-          this->m_cellServer.clear();                                            //clean the std::vector container
+          this->m_cellServer.clear(); 
+
+          /*shutdown all the clients' connection in client info container*/
+          for (auto ib = this->m_clientInfo.begin(); ib != this->m_clientInfo.end(); ib++) {
+                    delete (*ib);
+          }
+          this->m_clientInfo.clear();
 
           /*clientConnection*/
           if (this->m_clientConnectionThread.joinable()) {
@@ -422,4 +430,20 @@ void HCNSTcpServer<ClientType>::shutdownTcpServer()
 #if _WIN32                          
           WSACleanup();
 #endif
+}
+
+/*------------------------------------------------------------------------------------------------------
+* virtual function: client terminate connection
+* @function:  void clientOnLeave(ClientType * _pclient)
+* @param : ClientType * _pclient
+*------------------------------------------------------------------------------------------------------*/
+template<class ClientType>
+void HCNSTcpServer<ClientType>::clientOnLeave(ClientType* _pclient)
+{
+          /*find target client structure and dealloc it's memory*/
+          auto _target = std::find(this->m_clientInfo.begin(), this->m_clientInfo.end(), _pclient);
+          delete (*_target);
+
+          /* erase Current unavailable client's socket */
+          this->m_clientInfo.erase(_target);
 }
