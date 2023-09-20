@@ -259,10 +259,7 @@ template<class ClientType>
 void HCNSCellServer<ClientType>::initServerIOMultiplexing()
 {
           FD_ZERO(&this->m_fdread);                                                               //clean fd_read
-          FD_ZERO(&this->m_fdwrite);                                                             //clean fd_write
-          FD_ZERO(&this->m_fdexception);                                                      //clean fd_exception
-
-          m_largestSocket = this->m_server_socket;
+          m_largestSocket = static_cast<SOCKET>(0);
 
           /*add all the client socket in to the fd_read*/
           for (auto ib = this->m_clientVec.begin(); ib != this->m_clientVec.end(); ib++) {
@@ -399,8 +396,10 @@ void HCNSCellServer<ClientType>::clientRequestProcessingThread()
           while (true) 
           {
                     /*size of temporary buffer is valid*/
-                    if (this->m_temporaryClientBuffer.size()) {
-                              while (!this->m_temporaryClientBuffer.empty()) {
+                    if (this->m_temporaryClientBuffer.size()) 
+                    {
+                              while (!this->m_temporaryClientBuffer.empty())
+                              {
                                         std::lock_guard<std::mutex> _lckg(this->m_queueMutex);
                                         this->m_clientVec.push_back(this->m_temporaryClientBuffer.front());
                                         this->m_temporaryClientBuffer.pop();

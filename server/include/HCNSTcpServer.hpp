@@ -258,8 +258,8 @@ bool HCNSTcpServer<ClientType>::initServerSelectModel(IN SOCKET _largestSocket)
                     ::select(
                               static_cast<int>(_largestSocket) + 1,
                               &this->m_fdread,
-                              &this->m_fdwrite,
-                              &this->m_fdexception,
+                              nullptr,
+                              nullptr,
                               &this->m_timeoutSetting
                     ) < 0
           );
@@ -321,13 +321,7 @@ void HCNSTcpServer<ClientType>::clientConnectionThread()
           while (true) 
           {
                     FD_ZERO(&this->m_fdread);                                                               //clean fd_read
-                    FD_ZERO(&this->m_fdwrite);                                                             //clean fd_write
-                    FD_ZERO(&this->m_fdexception);                                                      //clean fd_exception
-
                     FD_SET(this->m_server_socket, &this->m_fdread);                           //Insert Server Socket into fd_read
-                    FD_SET(this->m_server_socket, &this->m_fdwrite);                          //Insert Server Socket into fd_write
-                    FD_SET(this->m_server_socket, &this->m_fdexception);                  //Insert Server Socket into fd_exception
-
                     /*the number of server socket is the largest in client connection thread(producer)*/
                     if (this->initServerSelectModel(this->m_server_socket)) {
                               this->shutdownTcpServer();                 //when select model fails then shutdown server
