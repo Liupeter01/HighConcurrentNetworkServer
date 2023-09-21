@@ -136,7 +136,7 @@ private:
           typename std::vector<ClientType*> m_clientVec;
 
           /*cell server obj pass a client on leave signal to the tcpserver*/
-          typename INetEvent<ClientType>* m_pNetEvent;
+          INetEvent<ClientType>* m_pNetEvent;
 };
 #endif
 
