@@ -65,10 +65,9 @@ public:
           void startCellServer();
           size_t getClientsConnectionLoad();
           void pushTemproaryClient(ClientType* _pclient);
-          unsigned long long getPackageCounter();
-          void resetPackageCounter();
 
 private:
+          void purgeCloseSocket(ClientType* _pclient);
           int getLargestSocketValue();
           void initServerIOMultiplexing();
           bool initServerSelectModel();
@@ -136,9 +135,6 @@ private:
           /*every cell server thread have one client array(permanent storage)*/
           typename std::vector<ClientType*> m_clientVec;
 
-          /*record packages received in this CellServer obj*/
-          std::atomic<unsigned long long> m_packageCounter;
-
           /*cell server obj pass a client on leave signal to the tcpserver*/
           typename INetEvent<ClientType>* m_pNetEvent;
 };
@@ -161,8 +157,7 @@ HCNSCellServer<ClientType>::HCNSCellServer(
           : m_server_socket(_serverSocket),
           m_szRecvBuffer(new char[m_szRecvBufSize]),
           m_interfaceFuture(_future),
-          m_pNetEvent(_netEvent),
-          m_packageCounter(0)
+          m_pNetEvent(_netEvent)
 {
 #if _WIN32    
           memcpy_s(
@@ -225,24 +220,21 @@ void HCNSCellServer<ClientType>::pushTemproaryClient(ClientType* _pclient)
 }
 
 /*------------------------------------------------------------------------------------------------------
-* get current packageCounter value for upload speed calculation
-* @function: unsigned long long getPackageCounter()
-* @retvalue: unsigned long long
+* shutdown and terminate network connection 
+* @function: void pushTemproaryClient(ClientType* _pclient)
+* @retvalue: ClientType* _pclient
 *------------------------------------------------------------------------------------------------------*/
 template<class ClientType>
-unsigned long long HCNSCellServer<ClientType>::getPackageCounter()
+void HCNSCellServer<ClientType>::purgeCloseSocket(ClientType* _pclient)
 {
-          return this->m_packageCounter;
-}
-
-/*------------------------------------------------------------------------------------------------------
-* reset atomic package counter value to zero
-* @function: void resetPackageCounter()
-*------------------------------------------------------------------------------------------------------*/
-template<class ClientType>
-void HCNSCellServer<ClientType>::resetPackageCounter()
-{
-          this->m_packageCounter = 0;
+#if _WIN32
+          ::shutdown(_pclient->getClientSocket(), SD_BOTH);                        //disconnect I/O
+          ::closesocket(_pclient->getClientSocket());                                        //release socket completely!! 
+#else 
+          ::shutdown(_pclient->getClientSocket(), SHUT_RDWR);                 //disconnect I/O and keep recv buffer
+          ::close(_pclient->getClientSocket());                                                   //release socket completely!! 
+#endif
+          delete _pclient;
 }
 
 /*------------------------------------------------------------------------------------------------------
@@ -348,10 +340,10 @@ bool HCNSCellServer<ClientType>::clientDataProcessingLayer(
 
                     /*the size of current message in szMsgBuffer is bigger than the package length(_header->_packageLength)*/
                     if (_header->_packageLength <= (*_clientSocket)->getMsgPtrPos())
-                    {
-                              /* add up to atomic package receive counter */
-                              ++this->m_packageCounter;
-                           
+                    {             
+                              /*add up to HCNSTcpServer package counter*/
+                              this->m_pNetEvent->addUpPackageCounter();
+
                               //get message header to indentify commands    
                               //this->readMessageHeader(_clientSocket, reinterpret_cast<_PackageHeader*>(_header));
                               //this->readMessageBody(_clientSocket, reinterpret_cast<_PackageHeader*>(_header));
@@ -450,7 +442,8 @@ void HCNSCellServer<ClientType>::clientRequestProcessingThread(
                                                   /*notify the tcp server to delete it from the container and dealloc it's memory*/
                                                   this->m_pNetEvent->clientOnLeave((*ib));
 
-                                                  delete (*ib);
+                                                  /*modify code from just delete (*ib) to shutdown socket first and then delete*/
+                                                  this->purgeCloseSocket((*ib));
 
                                                   /* erase Current unavailable client's socket(no longer needs to dealloc it's memory)*/
                                                   ib = this->m_clientVec.erase(ib);
@@ -570,14 +563,7 @@ void HCNSCellServer<ClientType>::shutdownCellServer()
           for (auto ib = this->m_clientVec.begin(); ib != this->m_clientVec.end(); ib++) 
           {
                     this->m_pNetEvent->clientOnLeave((*ib));
-#if _WIN32
-                    ::shutdown((*ib)->getClientSocket(), SD_BOTH);                        //disconnect I/O
-                    ::closesocket((*ib)->getClientSocket());                                        //release socket completely!! 
-#else 
-                    ::shutdown((*ib)->getClientSocket(), SHUT_RDWR);                 //disconnect I/O and keep recv buffer
-                    ::close((*ib)->getClientSocket());                                                   //release socket completely!! 
-#endif
-                    delete (*ib);
+                    this->purgeCloseSocket((*ib));
           }
           this->m_clientVec.clear();                                            //clean the std::vector container
 

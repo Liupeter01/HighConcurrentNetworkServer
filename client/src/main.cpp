@@ -1,13 +1,13 @@
 #include"HelloClient.h"
 
-constexpr int g_ClientNumber(4000);
+constexpr int g_ClientNumber(10000);
 constexpr int g_ThreadNumber(4);
 
 int main()
 {
           std::promise<bool> m_interfacePromise;
           std::shared_future<bool> m_interfaceFuture(m_interfacePromise.get_future());
-          _LoginData loginData("client-loopback404", "1234567abc");
+          _LoginData loginData[10]{ _LoginData("client-loopback404", "1234567abc") };
           HelloClient* clientPool[g_ClientNumber];
           std::thread th_send[g_ThreadNumber];
           std::thread th_stop([](std::promise<bool>& _promise) {
@@ -43,7 +43,7 @@ int main()
                                                   }
                                         }
                                         for (int i = id * (g_ClientNumber / g_ThreadNumber); i < (id + 1) * (g_ClientNumber / g_ThreadNumber); ++i) {
-                                                  clientPool[i]->sendDataToServer(clientPool[i]->getClientSocket(), &loginData, sizeof(loginData));
+                                                  clientPool[i]->sendDataToServer(clientPool[i]->getClientSocket(), loginData, sizeof(loginData));
                                         }
                               }
 

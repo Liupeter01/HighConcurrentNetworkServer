@@ -5,7 +5,7 @@
 
 #if _WIN32             //Windows Enviorment  
 /*break the limitaion of the select model size*/
-#define FD_SETSIZE 1024      
+#define FD_SETSIZE 4096      
 #define _WINSOCK_DEPRECATED_NO_WARNINGS
 #define WIN32_LEAN_AND_MEAN
 #include<Windows.h>
