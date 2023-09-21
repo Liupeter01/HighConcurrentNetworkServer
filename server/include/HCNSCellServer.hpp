@@ -169,7 +169,7 @@ HCNSCellServer<ClientType>::HCNSCellServer(
 
 #else             
           memcpy(
-                    this->m_server_address,
+                    &this->m_server_address,
                     &_serverAddr,
                     sizeof(SOCKADDR_IN)
           );
