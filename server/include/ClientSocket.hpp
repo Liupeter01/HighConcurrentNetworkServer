@@ -56,6 +56,16 @@ public:
           void increaseMsgBufferPos(unsigned int _increaseSize);
           void decreaseMsgBufferPos(unsigned int _decreaseSize);
 
+          template<typename T> void sendDataToClient(
+                    IN T* _szSendBuf,
+                    IN int _szBufferSize
+          );
+
+          template<typename T> int reciveDataFromClient(
+                    OUT T* _szRecvBuf,
+                    IN int _szBufferSize
+          );
+
 private:
           SOCKET m_clientSocket;
           sockaddr_in m_clientAddr;
@@ -66,3 +76,31 @@ private:
           std::shared_ptr<char> m_szMsgBuffer;                                        //find available data from server recive buffer
 };
 #endif
+
+/*------------------------------------------------------------------------------------------------------
+* @function: void sendDataToClient
+* @param : 1.[IN]  T* _szSendBuf,
+                    2.[IN] int _szBufferSize
+*------------------------------------------------------------------------------------------------------*/
+template<typename T>
+void _ClientSocket::sendDataToClient(
+          IN T* _szSendBuf,
+          IN int _szBufferSize)
+{
+          ::send(this->m_clientSocket, reinterpret_cast<const char*>(_szSendBuf), _szBufferSize, 0);
+}
+
+/*------------------------------------------------------------------------------------------------------
+* @function: void reciveDataFromClient
+* @param : 1. [OUT]  T* _szRecvBuf,
+                    2. [IN] int &_szBufferSize
+
+* @retvalue: int
+*------------------------------------------------------------------------------------------------------*/
+template<typename T>
+int _ClientSocket::reciveDataFromClient(
+          OUT T* _szRecvBuf,
+          IN int _szBufferSize)
+{
+          return  ::recv(this->m_clientSocket, reinterpret_cast<char*>(_szRecvBuf), _szBufferSize, 0);
+}

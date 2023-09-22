@@ -88,18 +88,6 @@ private:
                     IN T* _header
           );
 
-          template<typename T> void sendDataToClient(
-                    IN  SOCKET& _clientSocket,
-                    IN T* _szSendBuf,
-                    IN int _szBufferSize
-          );
-
-          template<typename T> int reciveDataFromClient(
-                    IN  SOCKET& _clientSocket,
-                    OUT T* _szRecvBuf,
-                    IN int _szBufferSize
-          );
-
 private:
           /*When HCNSTcpServer set promise as false, all cell server should terminate*/
           std::shared_future<bool> m_interfaceFuture;
@@ -297,8 +285,7 @@ template<class ClientType>
 bool HCNSCellServer<ClientType>::clientDataProcessingLayer(
           IN typename std::vector<ClientType*>::iterator _clientSocket)
 {
-          int  recvStatus = this->reciveDataFromClient(      //retrieve data from kernel buffer space
-                    (*_clientSocket)->getClientSocket(),
+          int  recvStatus = (*_clientSocket)->reciveDataFromClient(      //retrieve data from kernel buffer space
                     this->m_szRecvBuffer.get(),
                     this->m_szRecvBufSize
           );
@@ -504,50 +491,19 @@ void HCNSCellServer<ClientType>::readMessageBody(
                     std::cout << "username = " << loginData->userName
                               << ", userpassword = " << loginData->userPassword << std::endl;
 
-                    this->sendDataToClient((*_clientSocket)->getClientSocket(), loginData, sizeof(_LoginData));
+                    (*_clientSocket)->sendDataToClient(loginData, sizeof(_LoginData));
           }
           else if (_header->_packageCmd == CMD_LOGOUT) {
                     _LogoutData* logoutData(reinterpret_cast<_LogoutData*>(_header));
                     logoutData->logoutStatus = true;                                                                               //set logout status as true
                     std::cout << "username = " << logoutData->userName << std::endl;
 
-                    this->sendDataToClient((*_clientSocket)->getClientSocket(), logoutData, sizeof(_LogoutData));
+                    (*_clientSocket)->sendDataToClient(logoutData, sizeof(_LogoutData));
           }
           else {
                     _PackageHeader _error(sizeof(_PackageHeader), CMD_ERROR);
-                    this->sendDataToClient((*_clientSocket)->getClientSocket(), &_error, sizeof(_PackageHeader));
+                    (*_clientSocket)->sendDataToClient(&_error, sizeof(_PackageHeader));
           }
-}
-
-/*------------------------------------------------------------------------------------------------------
-* @function: void sendDataToClient
-* @param : 1.[IN]   SOCKET& _clientSocket,
-                    2.[IN]  T* _szSendBuf,
-                    3.[IN] int _szBufferSize
-*------------------------------------------------------------------------------------------------------*/
-template<class ClientType> template<typename T>
-void HCNSCellServer<ClientType>::sendDataToClient(
-          IN  SOCKET& _clientSocket,
-          IN T* _szSendBuf,
-          IN int _szBufferSize)
-{
-          ::send(_clientSocket, reinterpret_cast<const char*>(_szSendBuf), _szBufferSize, 0);
-}
-
-/*------------------------------------------------------------------------------------------------------
-* @function: void reciveDataFromClient
-* @param : 1. [IN]  SOCKET&  _clientSocket,
-                    2. [OUT]  T* _szRecvBuf,
-                    3. [IN] int &_szBufferSize
-* @retvalue: int
-*------------------------------------------------------------------------------------------------------*/
-template<class ClientType> template<typename T>
-int HCNSCellServer<ClientType>::reciveDataFromClient(
-          IN  SOCKET& _clientSocket,
-          OUT T* _szRecvBuf,
-          IN int _szBufferSize)
-{
-          return  ::recv(_clientSocket, reinterpret_cast<char*>(_szRecvBuf), _szBufferSize, 0);
 }
 
 /*------------------------------------------------------------------------------------------------------

@@ -36,10 +36,10 @@ public:
 
 public:
           int startServerListening(IN int backlog = SOMAXCONN);
-          void serverMainFunction();
+          void serverMainFunction(IN const unsigned int _threadNumber);
 
 private:
-          void purgeCloseSocket(ClientType* _pclient);
+          void purgeCloseSocket(IN ClientType* _pclient);
           void initServerAddressBinding(
                     unsigned long _ipAddr,
                     unsigned short _port
@@ -56,6 +56,7 @@ private:
           void shutdownTcpServer();
 
 private:
+          virtual void clientOnJoin(ClientType* _pclient);
           virtual void clientOnLeave(ClientType* _pclient);
           virtual void addUpClientsCounter();
           virtual void decreaseClientsCounter();
@@ -208,11 +209,16 @@ int HCNSTcpServer<ClientType>::startServerListening(IN int backlog)
 
 /*------------------------------------------------------------------------------------------------------
 * start to create server thread
-* @function:  void serverMainFunction
+* @function:  void serverMainFunction(IN const unsigned int _threadNumber)
+* @param [IN] IN const unsigned int _threadNumber
 *------------------------------------------------------------------------------------------------------*/
 template<class ClientType>
-void HCNSTcpServer<ClientType>::serverMainFunction()
+void HCNSTcpServer<ClientType>::serverMainFunction(IN const unsigned int _threadNumber)
 {
+          if (_threadNumber <= 0) {
+                    std::cout << "Invalid Server Thread Number" << std::endl;
+                    return;
+          }
           th_tcpServerThreadPool.emplace_back(
                     std::mem_fn(&HCNSTcpServer::clientConnectionThread), this
           );
@@ -220,7 +226,7 @@ void HCNSTcpServer<ClientType>::serverMainFunction()
                     std::mem_fn(&HCNSTcpServer::serverInterfaceLayer), this, std::ref(this->m_interfacePromise)
           );
 
-          for (int i = 0; i < 4; ++i) {
+          for (int i = 0; i < _threadNumber; ++i) {
                     this->m_cellServer.push_back(
                               new HCNSCellServer<ClientType>(
                                         this->m_server_socket,
@@ -238,10 +244,10 @@ void HCNSTcpServer<ClientType>::serverMainFunction()
 /*------------------------------------------------------------------------------------------------------
 * shutdown and terminate network connection
 * @function: void pushTemproaryClient(ClientType* _pclient)
-* @retvalue: ClientType* _pclient
+* @param: [IN] ClientType* _pclient
 *------------------------------------------------------------------------------------------------------*/
 template<class ClientType>
-void HCNSTcpServer<ClientType>::purgeCloseSocket(ClientType* _pclient)
+void HCNSTcpServer<ClientType>::purgeCloseSocket(IN ClientType* _pclient)
 {
           this->decreaseClientsCounter();
 #if _WIN32
@@ -336,8 +342,8 @@ void HCNSTcpServer<ClientType>::serverInterfaceLayer(
 template<class ClientType>
 void HCNSTcpServer<ClientType>::pushClientToCellServer(IN ClientType* _client)
 {
-          /* add up to m_clientCounter */
-          this->addUpClientsCounter();                               
+          /*Client join the server*/
+          this->clientOnJoin(_client);
           this->m_clientInfo.push_back(_client);
 
           auto _lowest = this->m_cellServer.begin();
@@ -456,9 +462,21 @@ void HCNSTcpServer<ClientType>::shutdownTcpServer()
 }
 
 /*------------------------------------------------------------------------------------------------------
+  * virtual function: client connect to server
+  * @function:  void clientOnJoin(ClientType * _pclient)
+  * @param : ClientType * _pclient
+  *------------------------------------------------------------------------------------------------------*/
+template<class ClientType>
+void HCNSTcpServer<ClientType>::clientOnJoin(ClientType* _pclient)
+{
+          this->addUpClientsCounter();
+}
+
+/*------------------------------------------------------------------------------------------------------
 * virtual function: client terminate connection
-* @function:  void clientOnLeave(ClientType* _pclient)
-* @param :  ClientType* _pclient
+* @function:  void clientOnLeave(ClientType * _pclient)
+* @param : ClientType * _pclient
+* @multithread safety issue: will be triggered by multipule threads, variables should be locked or atomic variables
 *------------------------------------------------------------------------------------------------------*/
 template<class ClientType>
 void HCNSTcpServer<ClientType>::clientOnLeave(ClientType* _pclient)
@@ -484,6 +502,7 @@ void HCNSTcpServer<ClientType>::clientOnLeave(ClientType* _pclient)
 /*------------------------------------------------------------------------------------------------------
   * virtual function: decrease to the number of clients
   * @function:  decreaseClientsCounter()
+  * @multithread safety issue: will be triggered by multipule threads, variables should be locked or atomic variables
   *------------------------------------------------------------------------------------------------------*/
 template<class ClientType>
 void HCNSTcpServer<ClientType>::decreaseClientsCounter()
@@ -492,9 +511,10 @@ void HCNSTcpServer<ClientType>::decreaseClientsCounter()
 }
 
 /*------------------------------------------------------------------------------------------------------
-    * virtual function: add up to the number of clients
-    * @function:  void addUpClientsCounter()
-    *------------------------------------------------------------------------------------------------------*/
+* virtual function: add up to the number of clients
+  * @function:  void addUpClientsCounter()
+  * @multithread safety issue: will be triggered by multipule threads, variables should be locked or atomic variables
+  *------------------------------------------------------------------------------------------------------*/
 template<class ClientType>
 void HCNSTcpServer<ClientType>::addUpClientsCounter()
 {
@@ -503,7 +523,8 @@ void HCNSTcpServer<ClientType>::addUpClientsCounter()
 
 /*------------------------------------------------------------------------------------------------------
   * virtual function: add up to the number of packages being received
-  * @function:  void addUpPackageCounter()
+  * @function:  void addUppackageCounter()
+  * @multithread safety issue: will be triggered by multipule threads, variables should be locked or atomic variables
   *------------------------------------------------------------------------------------------------------*/
 template<class ClientType>
 void HCNSTcpServer<ClientType>::addUpPackageCounter()
