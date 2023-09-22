@@ -22,3 +22,4 @@ server/build
 /server/src/HCNSMemoryPool.idb
 /server/src/HCNSMemoryPool.pdb
 /server/src/HCNSMemoryPool.lib
+lib/HCNSMemory
