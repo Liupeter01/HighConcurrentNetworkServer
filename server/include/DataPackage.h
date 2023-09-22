@@ -45,7 +45,6 @@ struct _LoginData :public _PackageHeader
 public:
           char userName[32]{ 0 };
           char userPassword[32]{ 0 };
-          char _data[940]{ 0 };
           bool loginStatus = false;
 };
 
@@ -57,7 +56,6 @@ struct _LogoutData :public _PackageHeader
 
 public:
           char userName[32]{ 0 };
-          char _data[972]{ 0 };
           bool logoutStatus = false;
 };
 
@@ -74,7 +72,6 @@ struct _SystemData :public _PackageHeader
 public:
           char serverName[32]{ 0 };
           char serverRunTime[32]{ 0 };
-          char _data[940]{ 0 };
 };
 
 struct _BoardCast :public _PackageHeader
@@ -89,7 +86,6 @@ struct _BoardCast :public _PackageHeader
 public:
           char new_ip[32]{ 0 };
           unsigned short  new_port;
-          char _data[972]{ 0 };
 };
 
 #endif 

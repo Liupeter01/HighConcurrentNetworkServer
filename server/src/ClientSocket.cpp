@@ -1,4 +1,4 @@
-#include <ClientSocket.h>
+#include <ClientSocket.hpp>
 
 _ClientSocket::_ClientSocket()
           :m_clientSocket(INVALID_SOCKET)
@@ -15,6 +15,18 @@ _ClientSocket::_ClientSocket(
           ::memcpy(
                     reinterpret_cast<void*>(&this->m_clientAddr),
                     reinterpret_cast<const void*>(&_addr),
+                    sizeof(sockaddr_in)
+          );
+}
+
+_ClientSocket::~_ClientSocket()
+{
+          //[POTIENTAL BUG HERE!]: why _clientaddr's dtor was deployed
+         // ::closesocket(this->m_clientSocket);
+          this->m_clientSocket = INVALID_SOCKET;
+          memset(
+                    reinterpret_cast<void*>(&this->m_clientAddr),
+                    0,
                     sizeof(sockaddr_in)
           );
 }
@@ -69,16 +81,4 @@ void  _ClientSocket::decreaseMsgBufferPos(unsigned int _decreaseSize)
 {
           this->m_szMsgPtrPos -= _decreaseSize;
           this->m_szRemainSpace += _decreaseSize;
-}
-
-_ClientSocket::~_ClientSocket()
-{
-          //[POTIENTAL BUG HERE!]: why _clientaddr's dtor was deployed
-         // ::closesocket(this->m_clientSocket);
-          this->m_clientSocket = INVALID_SOCKET;
-          memset(
-                    reinterpret_cast<void*>(&this->m_clientAddr),
-                    0,
-                    sizeof(sockaddr_in)
-          );
 }
