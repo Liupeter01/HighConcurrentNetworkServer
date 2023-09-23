@@ -56,11 +56,20 @@ private:
           void shutdownTcpServer();
 
 private:
-          virtual void clientOnJoin(ClientType* _pclient);
+          virtual inline void clientOnJoin(ClientType* _pclient);
           virtual void clientOnLeave(ClientType* _pclient);
-          virtual void addUpClientsCounter();
-          virtual void decreaseClientsCounter();
-          virtual void addUpPackageCounter();
+          virtual inline void addUpClientsCounter();
+          virtual inline void decreaseClientsCounter();
+          virtual inline void addUpPackageCounter();
+          virtual inline void readMessageHeader(
+                    IN  typename  std::vector<ClientType*>::iterator _clientSocket,
+                    IN _PackageHeader* _header
+          );
+
+          virtual inline void readMessageBody(
+                    IN typename  std::vector<ClientType*>::iterator _clientSocket,
+                    IN _PackageHeader* _header
+          );
 
 private:
           /*server interface symphoare control and thread creation*/
@@ -189,9 +198,6 @@ bool HCNSTcpServer<ClientType>::acceptClientConnection(
           if ((*clientSocket = ::accept(serverSocket, reinterpret_cast<sockaddr*>(_clientAddr), &addrlen)) == INVALID_SOCKET) {                 //socket error occured!
                     return false;
           }
-          std::cout << "Accept Client's Connection<Socket =" << static_cast<int>(*clientSocket) << ","
-                    << inet_ntoa(_clientAddr->sin_addr) << ":" << _clientAddr->sin_port << ">" << std::endl;
-
           return true;
 }
 
@@ -342,8 +348,9 @@ void HCNSTcpServer<ClientType>::serverInterfaceLayer(
 template<class ClientType>
 void HCNSTcpServer<ClientType>::pushClientToCellServer(IN ClientType* _client)
 {
-          /*Client join the server*/
+          /*client join the server*/
           this->clientOnJoin(_client);
+
           this->m_clientInfo.push_back(_client);
 
           auto _lowest = this->m_cellServer.begin();
@@ -365,13 +372,15 @@ template<class ClientType>
 void HCNSTcpServer<ClientType>::clientConnectionThread()
 {
           while (true) 
-          {
+          {            
+                    /*init tcpserver select model*/
                     FD_ZERO(&this->m_fdread);                                                               //clean fd_read
                     FD_SET(this->m_server_socket, &this->m_fdread);                           //Insert Server Socket into fd_read
-                   
+
                     /*the number of server socket is the largest in client connection thread(producer)*/
                     if (this->initServerSelectModel(this->m_server_socket)) {
                               this->shutdownTcpServer();                 //when select model fails then shutdown server
+                              break;
                     }
 
                     /*calculate the clients upload speed, according to all cell servers*/
@@ -467,9 +476,12 @@ void HCNSTcpServer<ClientType>::shutdownTcpServer()
   * @param : ClientType * _pclient
   *------------------------------------------------------------------------------------------------------*/
 template<class ClientType>
-void HCNSTcpServer<ClientType>::clientOnJoin(ClientType* _pclient)
+inline void HCNSTcpServer<ClientType>::clientOnJoin(ClientType* _pclient)
 {
           this->addUpClientsCounter();
+
+          std::cout << "Accept Client's Connection<Socket =" << static_cast<int>(_pclient->getClientSocket()) << ","
+                    << inet_ntoa(_pclient->getClientAddr()) << ":" << _pclient->getClientPort() << ">" << std::endl;
 }
 
 /*------------------------------------------------------------------------------------------------------
@@ -483,6 +495,9 @@ void HCNSTcpServer<ClientType>::clientOnLeave(ClientType* _pclient)
 {
           /* decrease m_clientCounter */
           this->decreaseClientsCounter();
+
+          std::cout << "Terminate Client's Connection<Socket =" << static_cast<int>(_pclient->getClientSocket()) << ","
+                    << inet_ntoa(_pclient->getClientAddr()) << ":" << _pclient->getClientPort() << ">" << std::endl;
 
           /*
           * in clientOnLeave function, the scale of the lock have to cover the all block of the code
@@ -505,7 +520,7 @@ void HCNSTcpServer<ClientType>::clientOnLeave(ClientType* _pclient)
   * @multithread safety issue: will be triggered by multipule threads, variables should be locked or atomic variables
   *------------------------------------------------------------------------------------------------------*/
 template<class ClientType>
-void HCNSTcpServer<ClientType>::decreaseClientsCounter()
+inline void HCNSTcpServer<ClientType>::decreaseClientsCounter()
 {
           --this->m_ClientsCounter;
 }
@@ -516,7 +531,7 @@ void HCNSTcpServer<ClientType>::decreaseClientsCounter()
   * @multithread safety issue: will be triggered by multipule threads, variables should be locked or atomic variables
   *------------------------------------------------------------------------------------------------------*/
 template<class ClientType>
-void HCNSTcpServer<ClientType>::addUpClientsCounter()
+inline void HCNSTcpServer<ClientType>::addUpClientsCounter()
 {
           ++this->m_ClientsCounter;
 }
@@ -527,7 +542,67 @@ void HCNSTcpServer<ClientType>::addUpClientsCounter()
   * @multithread safety issue: will be triggered by multipule threads, variables should be locked or atomic variables
   *------------------------------------------------------------------------------------------------------*/
 template<class ClientType>
-void HCNSTcpServer<ClientType>::addUpPackageCounter()
+inline void HCNSTcpServer<ClientType>::addUpPackageCounter()
 {
           ++this->m_packageCounter;
+}
+
+/*------------------------------------------------------------------------------------------------------
+* @function:  void readMessageHeader
+* @param:  1.[IN] typename std::vector<ClientType*>::iterator _clientSocket
+                    2.[IN ]  _PackageHeader* _header
+
+* @description: process clients' message header
+*------------------------------------------------------------------------------------------------------*/
+template<class ClientType>
+void HCNSTcpServer<ClientType>::readMessageHeader(
+          IN typename std::vector<ClientType*>::iterator _clientSocket,
+          IN  _PackageHeader* _header)
+{
+          /*add up to HCNSTcpServer package counter*/
+          this->addUpPackageCounter();
+
+          std::cout << "Client's Connection Request<Socket =" << static_cast<int>((*_clientSocket)->getClientSocket()) << ","
+                    << inet_ntoa((*_clientSocket)->getClientAddr()) << ":" << (*_clientSocket)->getClientPort() << "> : "
+                    << "Data Length = " << _header->_packageLength << ", Request = ";
+
+          if (_header->_packageCmd == CMD_LOGIN) {
+                    std::cout << "CMD_LOGIN, ";
+          }
+          else if (_header->_packageCmd == CMD_LOGOUT) {
+                    std::cout << "CMD_LOGOUT, ";
+          }
+}
+
+/*------------------------------------------------------------------------------------------------------
+* @function:  virtual void readMessageBody
+* @param:  1.[IN] typename std::vector<ClientType*>::iterator _clientSocket
+                    2.[IN] _PackageHeader* _buffer
+
+* @description:  process clients' message body
+*------------------------------------------------------------------------------------------------------*/
+template<class ClientType> 
+void HCNSTcpServer<ClientType>::readMessageBody(
+          IN typename std::vector<ClientType*>::iterator _clientSocket,
+          IN  _PackageHeader* _header)
+{
+          if (_header->_packageCmd == CMD_LOGIN) {
+                    _LoginData* loginData(reinterpret_cast<_LoginData*>(_header));
+                    loginData->loginStatus = true;                                                                               //set login status as true
+                    std::cout << "username = " << loginData->userName
+                              << ", userpassword = " << loginData->userPassword << std::endl;
+
+                    (*_clientSocket)->sendDataToClient(loginData, sizeof(_LoginData));
+          }
+          else if (_header->_packageCmd == CMD_LOGOUT) {
+                    _LogoutData* logoutData(reinterpret_cast<_LogoutData*>(_header));
+                    logoutData->logoutStatus = true;                                                                               //set logout status as true
+                    std::cout << "username = " << logoutData->userName << std::endl;
+
+                    (*_clientSocket)->sendDataToClient(logoutData, sizeof(_LogoutData));
+          }
+          else {
+                    _PackageHeader _error(sizeof(_PackageHeader), CMD_ERROR);
+                    (*_clientSocket)->sendDataToClient(&_error, sizeof(_PackageHeader));
+          }
 }

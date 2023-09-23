@@ -78,17 +78,6 @@ private:
           void shutdownCellServer();
 
 private:
-          template<typename T> void readMessageHeader(
-                    IN  typename  std::vector<ClientType*>::iterator _clientSocket,
-                    IN  T* _header
-          );
-
-          template<typename T> void readMessageBody(
-                    IN typename  std::vector<ClientType*>::iterator _clientSocket,
-                    IN T* _header
-          );
-
-private:
           /*When HCNSTcpServer set promise as false, all cell server should terminate*/
           std::shared_future<bool> m_interfaceFuture;
 
@@ -105,6 +94,10 @@ private:
           fd_set m_fdexception;
           timeval m_timeoutSetting{ 0/*0 s*/, 0 /*0 ms*/ };
           SOCKET m_largestSocket;
+
+          /*select network model (prevent performance loss when there is no client join or leave)*/
+          fd_set m_fdreadCache;                             //fd_set array backup
+          bool m_isClientArrayChanged;
 
           /*
           * additional buffer space for clientDataProcessingLayer()
@@ -145,7 +138,8 @@ HCNSCellServer<ClientType>::HCNSCellServer(
           : m_server_socket(_serverSocket),
           m_szRecvBuffer(new char[m_szRecvBufSize]),
           m_interfaceFuture(_future),
-          m_pNetEvent(_netEvent)
+          m_pNetEvent(_netEvent),
+          m_isClientArrayChanged(true)
 {
 #if _WIN32    
           memcpy_s(
@@ -238,21 +232,57 @@ int HCNSCellServer<ClientType>::getLargestSocketValue()
 
 /*------------------------------------------------------------------------------------------------------
 * init IO Multiplexing for clientRequestProcessing
-* @function: SOCKET initServerIOMultiplexing
-* @retvalue: SOCKET
+* @function: void initServerIOMultiplexing
 *------------------------------------------------------------------------------------------------------*/
 template<class ClientType>
 void HCNSCellServer<ClientType>::initServerIOMultiplexing()
 {
-          FD_ZERO(&this->m_fdread);                                                               //clean fd_read
-          m_largestSocket = static_cast<SOCKET>(0);
+          /*is client array changed(including client join and leave)*/
+          if (this->m_isClientArrayChanged) {
+                    FD_ZERO(&this->m_fdread);                                                               //clean fd_read
+                    this->m_isClientArrayChanged = false;
+                    this->m_largestSocket = static_cast<SOCKET>(0);
 
-          /*add all the client socket in to the fd_read*/
-          for (auto ib = this->m_clientVec.begin(); ib != this->m_clientVec.end(); ib++) {
-                    FD_SET((*ib)->getClientSocket(), &m_fdread);
-                    if (m_largestSocket < (*ib)->getClientSocket()) {
-                              m_largestSocket = (*ib)->getClientSocket();
+                    /*add all the client socket in to the fd_read*/
+                    for (auto ib = this->m_clientVec.begin(); ib != this->m_clientVec.end(); ib++) {
+                              FD_SET((*ib)->getClientSocket(), &m_fdread);
+                              if (m_largestSocket < (*ib)->getClientSocket()) {
+                                        m_largestSocket = (*ib)->getClientSocket();
+                              }
                     }
+
+#if _WIN32    
+                    memcpy_s(
+                              reinterpret_cast<void*>(&this->m_fdreadCache),
+                              sizeof(this->m_fdreadCache),
+                              reinterpret_cast<void*>(&this->m_fdread),
+                              sizeof(this->m_fdread)
+                    );
+#else             
+                    memcpy(
+                              reinterpret_cast<void*>(&this->m_fdreadCache),
+                              reinterpret_cast<void*>(&this->m_fdread),
+                              sizeof(this->m_fdread)
+                    );
+#endif
+          }
+          else
+          {
+#if _WIN32    
+                    memcpy_s(
+                              reinterpret_cast<void*>(&this->m_fdread),
+                              sizeof(this->m_fdread),
+                              reinterpret_cast<void*>(&this->m_fdreadCache),
+                              sizeof(this->m_fdreadCache)
+                    );
+
+#else             
+                    memcpy(
+                              reinterpret_cast<void*>(&this->m_fdread),
+                              reinterpret_cast<void*>(&this->m_fdreadCache),
+                              sizeof(this->m_fdreadCache)
+                    );
+#endif
           }
 }
 
@@ -264,14 +294,12 @@ void HCNSCellServer<ClientType>::initServerIOMultiplexing()
 template<class ClientType>
 bool HCNSCellServer<ClientType>::initServerSelectModel()
 {
-          return (
-                    ::select(
+          return ::select(
                               getLargestSocketValue(),
                               &this->m_fdread,
                               &this->m_fdwrite,
                               &this->m_fdexception,
                               &this->m_timeoutSetting
-                    ) < 0
         );
 }
 
@@ -332,9 +360,9 @@ bool HCNSCellServer<ClientType>::clientDataProcessingLayer(
                               this->m_pNetEvent->addUpPackageCounter();
 
                               //get message header to indentify commands    
-                              //this->readMessageHeader(_clientSocket, reinterpret_cast<_PackageHeader*>(_header));
-                              //this->readMessageBody(_clientSocket, reinterpret_cast<_PackageHeader*>(_header));
-
+                              //this->m_pNetEvent->readMessageHeader(_clientSocket, reinterpret_cast<_PackageHeader*>(_header));
+                              //this->m_pNetEvent->readMessageBody(_clientSocket, reinterpret_cast<_PackageHeader*>(_header));
+                             
                               /* 
                               * delete this message package and modify the array
                               */
@@ -387,6 +415,7 @@ void HCNSCellServer<ClientType>::clientRequestProcessingThread(
                                         break;
                               }
                     }
+
                     /*size of temporary buffer is valid*/
                     if (this->m_temporaryClientBuffer.size()) 
                     {
@@ -395,6 +424,9 @@ void HCNSCellServer<ClientType>::clientRequestProcessingThread(
                                         this->m_clientVec.push_back(*ib);
                               }
                               this->m_temporaryClientBuffer.clear();
+
+                              /*clients joined*/
+                              this->m_isClientArrayChanged = true;
                     }
 
                     /*
@@ -407,8 +439,16 @@ void HCNSCellServer<ClientType>::clientRequestProcessingThread(
                     }
 
                     this->initServerIOMultiplexing();
-                    if (this->initServerSelectModel()) {
+
+                    int _selectStatus = this->initServerSelectModel();
+
+                    /*select model mulfunction*/
+                    if (_selectStatus < 0) {                         
+                              this->shutdownCellServer();
                               break;
+                    }
+                    else if(!_selectStatus){         /*cellserver hasn't receive any data*/ 
+                              continue;
                     }
 
                     ////[POTIENTAL BUG HERE!]: why _clientaddr's dtor was deployed
@@ -426,8 +466,13 @@ void HCNSCellServer<ClientType>::clientRequestProcessingThread(
                                         */
                                         if (!this->clientDataProcessingLayer(ib))
                                         {
+                                                  /*clients leave*/
+                                                  this->m_isClientArrayChanged = true;
+
                                                   /*notify the tcp server to delete it from the container and dealloc it's memory*/
-                                                  this->m_pNetEvent->clientOnLeave((*ib));
+                                                  if (this->m_pNetEvent != nullptr) {
+                                                            this->m_pNetEvent->clientOnLeave((*ib));
+                                                  }
 
                                                   /*modify code from just delete (*ib) to shutdown socket first and then delete*/
                                                   this->purgeCloseSocket((*ib));
@@ -446,63 +491,6 @@ void HCNSCellServer<ClientType>::clientRequestProcessingThread(
                               }
                               ib++;
                     }
-          }
-}
-
-/*------------------------------------------------------------------------------------------------------
-* @function:  void readMessageHeader
-* @param:  1.[IN] typename std::vector<ClientType*>::iterator _clientSocket
-                    2.[IN ] T* _header
-
-* @description: process clients' message header
-*------------------------------------------------------------------------------------------------------*/
-template<class ClientType> template<typename T>
-void HCNSCellServer<ClientType>::readMessageHeader(
-          IN typename std::vector<ClientType*>::iterator _clientSocket,
-          IN T* _header)
-{
-          std::cout << "Client's Connection Request<Socket =" << static_cast<int>((*_clientSocket)->getClientSocket()) << ","
-                    << inet_ntoa((*_clientSocket)->getClientAddr()) << ":" << (*_clientSocket)->getClientPort() << "> : "
-                    << "Data Length = " << _header->_packageLength << ", Request = ";
-
-          if (_header->_packageCmd == CMD_LOGIN) {
-                    std::cout << "CMD_LOGIN, ";
-          }
-          else if (_header->_packageCmd == CMD_LOGOUT) {
-                    std::cout << "CMD_LOGOUT, ";
-          }
-}
-
-/*------------------------------------------------------------------------------------------------------
-* @function:  virtual void readMessageBody
-* @param:  1.[IN] typename std::vector<ClientType*>::iterator _clientSocket
-                    2.[IN] _PackageHeader* _buffer
-
-* @description:  process clients' message body
-*------------------------------------------------------------------------------------------------------*/
-template<class ClientType>  template<typename T>
-void HCNSCellServer<ClientType>::readMessageBody(
-          IN typename std::vector<ClientType*>::iterator _clientSocket,
-          IN  T* _header)
-{
-          if (_header->_packageCmd == CMD_LOGIN) {
-                    _LoginData* loginData(reinterpret_cast<_LoginData*>(_header));
-                    loginData->loginStatus = true;                                                                               //set login status as true
-                    std::cout << "username = " << loginData->userName
-                              << ", userpassword = " << loginData->userPassword << std::endl;
-
-                    (*_clientSocket)->sendDataToClient(loginData, sizeof(_LoginData));
-          }
-          else if (_header->_packageCmd == CMD_LOGOUT) {
-                    _LogoutData* logoutData(reinterpret_cast<_LogoutData*>(_header));
-                    logoutData->logoutStatus = true;                                                                               //set logout status as true
-                    std::cout << "username = " << logoutData->userName << std::endl;
-
-                    (*_clientSocket)->sendDataToClient(logoutData, sizeof(_LogoutData));
-          }
-          else {
-                    _PackageHeader _error(sizeof(_PackageHeader), CMD_ERROR);
-                    (*_clientSocket)->sendDataToClient(&_error, sizeof(_PackageHeader));
           }
 }
 
