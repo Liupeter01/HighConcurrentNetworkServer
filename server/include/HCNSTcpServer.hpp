@@ -58,6 +58,7 @@ private:
 private:
           virtual inline void clientOnJoin(ClientType* _pclient);
           virtual void clientOnLeave(ClientType* _pclient);
+          virtual void addUpRecvCounter(ClientType* _pclient);
           virtual inline void addUpClientsCounter();
           virtual inline void decreaseClientsCounter();
           virtual inline void addUpPackageCounter();
@@ -100,6 +101,9 @@ private:
           std::mutex m_clientRWLock;
           typename std::vector<ClientType*> m_clientInfo;
 
+          /*record recv function calls*/
+          std::atomic<unsigned long long> m_recvCounter;
+
           /*record packages received in HCNSCellServer container*/
           std::atomic<unsigned long long> m_packageCounter;
 
@@ -134,7 +138,9 @@ HCNSTcpServer<ClientType>::HCNSTcpServer(
           IN unsigned short _ipPort)
           : m_timeStamp(new HCNSTimeStamp()),
           m_interfaceFuture(this->m_interfacePromise.get_future()),
-          m_packageCounter(0)
+          m_packageCounter(0),
+          m_recvCounter(0),
+          m_ClientsCounter(0)
 {
 #if _WIN32                          //Windows Enviorment
           WSAStartup(MAKEWORD(2, 2), &m_wsadata);
@@ -413,12 +419,18 @@ void HCNSTcpServer<ClientType>::getClientsUploadSpeed()
           if (this->m_timeStamp->getElaspsedTimeInsecond() >= 1LL){
 
                     std::cout << "[" << this->m_timeStamp->printCurrentTime() << "]: "
-                              << "<Connections:" << this->m_ClientsCounter << "> " << "Client's Upload Speed = "
-                              << this->m_packageCounter / this->m_timeStamp->getElaspsedTimeInsecond()
-                              << " Packages/s" << std::endl;
+                              << "<Connections:" << this->m_ClientsCounter << "> "
+                              << "Client's Upload Speed = "
+                              << this->m_packageCounter / this->m_timeStamp->getElaspsedTimeInsecond() << " Packages/s"
+                              << " Recv Function Called Frequency = "
+                              << this->m_recvCounter / this->m_timeStamp->getElaspsedTimeInsecond() << " Times/s"
+                              << std::endl;
 
                     /*reset package counter*/
                     this->m_packageCounter = 0;
+
+                    /*reset recv function call times*/
+                    this->m_recvCounter = 0;
 
                     /*reset timer*/
                     this->m_timeStamp->updateTimer();
@@ -515,14 +527,15 @@ void HCNSTcpServer<ClientType>::clientOnLeave(ClientType* _pclient)
 }
 
 /*------------------------------------------------------------------------------------------------------
-  * virtual function: decrease to the number of clients
-  * @function:  decreaseClientsCounter()
-  * @multithread safety issue: will be triggered by multipule threads, variables should be locked or atomic variables
-  *------------------------------------------------------------------------------------------------------*/
+ * virtual function: add up to the number of recv function calls
+ * @function:  void addUpRecvCounter(ClientType* _pclient)
+ * @param : ClientType * _pclient
+ * @multithread safety issue: will be triggered by multipule threads, variables should be locked or atomic variables
+ *------------------------------------------------------------------------------------------------------*/
 template<class ClientType>
-inline void HCNSTcpServer<ClientType>::decreaseClientsCounter()
+inline void HCNSTcpServer<ClientType>::addUpRecvCounter(ClientType* _pclient)
 {
-          --this->m_ClientsCounter;
+          this->m_recvCounter++;
 }
 
 /*------------------------------------------------------------------------------------------------------
@@ -534,6 +547,17 @@ template<class ClientType>
 inline void HCNSTcpServer<ClientType>::addUpClientsCounter()
 {
           ++this->m_ClientsCounter;
+}
+
+/*------------------------------------------------------------------------------------------------------
+  * virtual function: decrease to the number of clients
+  * @function:  decreaseClientsCounter()
+  * @multithread safety issue: will be triggered by multipule threads, variables should be locked or atomic variables
+  *------------------------------------------------------------------------------------------------------*/
+template<class ClientType>
+inline void HCNSTcpServer<ClientType>::decreaseClientsCounter()
+{
+          --this->m_ClientsCounter;
 }
 
 /*------------------------------------------------------------------------------------------------------
@@ -589,15 +613,15 @@ void HCNSTcpServer<ClientType>::readMessageBody(
           if (_header->_packageCmd == CMD_LOGIN) {
                     _LoginData* loginData(reinterpret_cast<_LoginData*>(_header));
                     loginData->loginStatus = true;                                                                               //set login status as true
-                    std::cout << "username = " << loginData->userName
-                              << ", userpassword = " << loginData->userPassword << std::endl;
+                    //std::cout << "username = " << loginData->userName
+                    //          << ", userpassword = " << loginData->userPassword << std::endl;
 
                     (*_clientSocket)->sendDataToClient(loginData, sizeof(_LoginData));
           }
           else if (_header->_packageCmd == CMD_LOGOUT) {
                     _LogoutData* logoutData(reinterpret_cast<_LogoutData*>(_header));
                     logoutData->logoutStatus = true;                                                                               //set logout status as true
-                    std::cout << "username = " << logoutData->userName << std::endl;
+                    //std::cout << "username = " << logoutData->userName << std::endl;
 
                     (*_clientSocket)->sendDataToClient(logoutData, sizeof(_LogoutData));
           }

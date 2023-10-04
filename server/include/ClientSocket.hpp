@@ -70,7 +70,11 @@ private:
           SOCKET m_clientSocket;
           sockaddr_in m_clientAddr;
 
-          const unsigned int m_szMsgBufSize = 4096 * 10 ;                       //100KB
+          /*
+          * additional buffer space for clientDataProcessingLayer()
+          * server recive buffer(retrieve much data as possible from kernel)
+          */
+          const unsigned int m_szMsgBufSize = 4096 * 10 ;                       //4MB
           unsigned long m_szMsgPtrPos = 0;                                               //message pointer location pos
           unsigned long m_szRemainSpace = m_szMsgBufSize;                        //remain space
           std::shared_ptr<char> m_szMsgBuffer;                                        //find available data from server recive buffer

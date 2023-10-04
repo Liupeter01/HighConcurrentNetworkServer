@@ -100,13 +100,6 @@ private:
           bool m_isClientArrayChanged;
 
           /*
-          * additional buffer space for clientDataProcessingLayer()
-          * server recive buffer(retrieve much data as possible from kernel)
-          */
-          const unsigned int m_szRecvBufSize = 4096;
-          std::shared_ptr<char> m_szRecvBuffer; 
-
-          /*
            * every  cell server have a temporary buffer
            * this client buffer just for temporary storage and all the client should be transfer to clientVec
           */
@@ -136,7 +129,6 @@ HCNSCellServer<ClientType>::HCNSCellServer(
           IN std::shared_future<bool>& _future,
           IN INetEvent<ClientType>* _netEvent)
           : m_server_socket(_serverSocket),
-          m_szRecvBuffer(new char[m_szRecvBufSize]),
           m_interfaceFuture(_future),
           m_pNetEvent(_netEvent),
           m_isClientArrayChanged(true)
@@ -240,6 +232,7 @@ void HCNSCellServer<ClientType>::initServerIOMultiplexing()
           /*is client array changed(including client join and leave)*/
           if (this->m_isClientArrayChanged) {
                     FD_ZERO(&this->m_fdread);                                                               //clean fd_read
+
                     this->m_isClientArrayChanged = false;
                     this->m_largestSocket = static_cast<SOCKET>(0);
 
@@ -254,15 +247,15 @@ void HCNSCellServer<ClientType>::initServerIOMultiplexing()
 #if _WIN32    
                     memcpy_s(
                               reinterpret_cast<void*>(&this->m_fdreadCache),
-                              sizeof(this->m_fdreadCache),
+                              sizeof(fd_set),
                               reinterpret_cast<void*>(&this->m_fdread),
-                              sizeof(this->m_fdread)
+                              sizeof(fd_set)
                     );
 #else             
                     memcpy(
                               reinterpret_cast<void*>(&this->m_fdreadCache),
                               reinterpret_cast<void*>(&this->m_fdread),
-                              sizeof(this->m_fdread)
+                              sizeof(fd_set)
                     );
 #endif
           }
@@ -271,16 +264,16 @@ void HCNSCellServer<ClientType>::initServerIOMultiplexing()
 #if _WIN32    
                     memcpy_s(
                               reinterpret_cast<void*>(&this->m_fdread),
-                              sizeof(this->m_fdread),
+                              sizeof(fd_set),
                               reinterpret_cast<void*>(&this->m_fdreadCache),
-                              sizeof(this->m_fdreadCache)
+                              sizeof(fd_set)
                     );
 
 #else             
                     memcpy(
                               reinterpret_cast<void*>(&this->m_fdread),
                               reinterpret_cast<void*>(&this->m_fdreadCache),
-                              sizeof(this->m_fdreadCache)
+                              sizeof(fd_set)
                     );
 #endif
           }
@@ -308,14 +301,22 @@ bool HCNSCellServer<ClientType>::initServerSelectModel()
 * @param: [IN] typename std::vector<ClientType*>::iterator
 * @description: process the request from clients
 * @retvalue : bool
+* @update: in order to enhance the performance of the server, we are going to
+*           remove m_szRecvBuffer in cellserver and serveral memcpy functions
 *------------------------------------------------------------------------------------------------------*/
 template<class ClientType>
 bool HCNSCellServer<ClientType>::clientDataProcessingLayer(
           IN typename std::vector<ClientType*>::iterator _clientSocket)
 {
+          /*add up to recv counter*/
+          this->m_pNetEvent->addUpRecvCounter((*_clientSocket));
+
+          /* We don't need to recv and store data in HCNScellServer::m_szRecvBuffer
+          *  we can recv and store data in every class clientsocket directly
+          */
           int  recvStatus = (*_clientSocket)->reciveDataFromClient(      //retrieve data from kernel buffer space
-                    this->m_szRecvBuffer.get(),
-                    this->m_szRecvBufSize
+                    (*_clientSocket)->getMsgBufferTail(),
+                    (*_clientSocket)->getBufRemainSpace()
           );
 
           if (recvStatus <= 0) {                                             //no data recieved!
@@ -325,24 +326,6 @@ bool HCNSCellServer<ClientType>::clientDataProcessingLayer(
 
                     return false;
           }
-
-          /*transmit m_szRecvBuffer to m_szMsgBuffer*/
-#if _WIN32     //Windows Enviorment
-          memcpy_s(
-                    (*_clientSocket)->getMsgBufferTail(),
-                    (*_clientSocket)->getBufRemainSpace(),
-                    this->m_szRecvBuffer.get(),
-                    recvStatus
-          );
-
-#else               /* Unix/Linux/Macos Enviorment*/
-          memcpy(
-                    (*_clientSocket)->getMsgBufferTail(),
-                    this->m_szRecvBuffer.get(),
-                    recvStatus
-          );
-
-#endif
 
           (*_clientSocket)->increaseMsgBufferPos(recvStatus);                //update the pointer pos of message array
 
@@ -395,7 +378,7 @@ bool HCNSCellServer<ClientType>::clientDataProcessingLayer(
           }
 
           /*clean the recv buffer*/
-          memset(this->m_szRecvBuffer.get(), 0, this->m_szRecvBufSize);
+          memset((*_clientSocket)->getMsgBufferHead(), 0, (*_clientSocket)->getBufFullSpace());
           return true;
 }
 

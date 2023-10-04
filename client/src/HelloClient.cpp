@@ -2,7 +2,6 @@
 
 HelloClient::HelloClient()
           :m_interfaceFuture(m_interfacePromise.get_future()),
-          m_szRecvBuffer(new char[m_szRecvBufSize] {0}),
           m_szMsgBuffer(new char[m_szMsgBufSize] {0})
 {
 #if _WIN32                          //Windows Enviormen
@@ -246,11 +245,13 @@ void HelloClient::readMessageBody(IN _PackageHeader* _buffer)
 *------------------------------------------------------------------------------------------------------*/
 bool HelloClient::dataProcessingLayer()
 {
+          /*enhance client data recieving capacity*/
           int  recvStatus = this->reciveDataFromServer(      //retrieve data from kernel buffer space
                     this->m_client_socket,
-                    this->m_szRecvBuffer.get(),
-                    this->m_szRecvBufSize
+                    this->m_szMsgBuffer.get() + this->m_szMsgPtrPos,
+                    this->m_szMsgBufSize - this->m_szMsgPtrPos
           );
+
           if (recvStatus <= 0) {                                             //no data recieved!
                     std::cout << "Server's Connection Terminate<Socket =" << this->m_client_socket << ","
                               << inet_ntoa(this->m_server_address.sin_addr) << ":"
@@ -258,23 +259,6 @@ bool HelloClient::dataProcessingLayer()
 
                     return false;
           }
-          /*transmit m_szRecvBuffer to m_szMsgBuffer*/
-#if _WIN32     //Windows Enviorment
-          memcpy_s(
-                    this->m_szMsgBuffer.get() + this->m_szMsgPtrPos,
-                    this->m_szMsgBufSize - this->m_szMsgPtrPos,
-                    this->m_szRecvBuffer.get(),
-                    recvStatus
-          );
-
-#else               /* Unix/Linux/Macos Enviorment*/
-          memcpy(
-                    this->m_szMsgBuffer.get() + this->m_szMsgPtrPos,
-                    this->m_szRecvBuffer.get(),
-                    recvStatus
-          );
-
-#endif
 
           this->m_szMsgPtrPos += recvStatus;                                    //get to the tail of current message
 
@@ -319,7 +303,7 @@ bool HelloClient::dataProcessingLayer()
           }
 
           /*clean the recv buffer*/
-          memset(this->m_szRecvBuffer.get(), 0, this->m_szRecvBufSize);
+          memset(this->m_szMsgBuffer.get(), 0, this->m_szMsgBufSize);
           return true;
 }
 
