@@ -616,17 +616,17 @@ void HCNSTcpServer<ClientType>::readMessageBody(
                     //std::cout << "username = " << loginData->userName
                     //          << ", userpassword = " << loginData->userPassword << std::endl;
 
-                    (*_clientSocket)->sendDataToClient(loginData, sizeof(_LoginData));
+                    (*_clientSocket)->sendDataToClient(loginData, loginData->_packageLength);
           }
           else if (_header->_packageCmd == CMD_LOGOUT) {
                     _LogoutData* logoutData(reinterpret_cast<_LogoutData*>(_header));
                     logoutData->logoutStatus = true;                                                                               //set logout status as true
                     //std::cout << "username = " << logoutData->userName << std::endl;
 
-                    (*_clientSocket)->sendDataToClient(logoutData, sizeof(_LogoutData));
+                    (*_clientSocket)->sendDataToClient(logoutData, logoutData->_packageLength);
           }
           else {
                     _PackageHeader _error(sizeof(_PackageHeader), CMD_ERROR);
-                    (*_clientSocket)->sendDataToClient(&_error, sizeof(_PackageHeader));
+                    (*_clientSocket)->sendDataToClient(&_error, _error._packageLength);
           }
 }
