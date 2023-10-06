@@ -1,6 +1,7 @@
 #pragma once
 #ifndef _HCNSMEMORYPOOL_H_
 #define _HCNSMEMORYPOOL_H_
+#include<mutex>
 #include<HCNSMemoryBlock.hpp>
 
 /*---------------------------------------------------------------------------------------------------
@@ -30,23 +31,27 @@ public:
 		  template<typename T> void freeMem(T _ptr);
 
 private:
-		   /*-----------------------------------------------------------------------------------*
-			*		  		  		/\   |------MemoryBlock---------|------UserSpace---------
-			*		  		  		 |   |---sizeof(MemoryBlock)---|------m_userSpace-------
-			*		  		  		 |   |---sizeof(MemoryBlock)---|------m_userSpace-------
-			*m_tupleLines  |   |---sizeof(MemoryBlock)---|------m_userSpace-------
-			*		  		  		 |   |---sizeof(MemoryBlock)---|------m_userSpace-------
-			*		  		  		 |   |---sizeof(MemoryBlock)---|------m_userSpace-------
-			*		 		  		\/   |---sizeof(MemoryBlock)---|------m_userSpace-------
-			*------------------------------------------------------------------------------------
-			*----------------------------------m_tupleTotalSize-----------------------------
-			*------------------------------------------------------------------------------------*/
+		  MemoryBlock* getUnAmbigousHeaderValue();
+
+private:
+		  /*-----------------------------------------------------------------------------------*
+		   *		  		  		/\   |------MemoryBlock---------|------UserSpace---------
+		   *		  		  		 |   |---sizeof(MemoryBlock)---|------m_userSpace-------
+		   *		  		  		 |   |---sizeof(MemoryBlock)---|------m_userSpace-------
+		   *m_tupleLines  |   |---sizeof(MemoryBlock)---|------m_userSpace-------
+		   *		  		  		 |   |---sizeof(MemoryBlock)---|------m_userSpace-------
+		   *		  		  		 |   |---sizeof(MemoryBlock)---|------m_userSpace-------
+		   *		 		  		\/   |---sizeof(MemoryBlock)---|------m_userSpace-------
+		   *------------------------------------------------------------------------------------
+		   *----------------------------------m_tupleTotalSize-----------------------------
+		   *------------------------------------------------------------------------------------*/
 		  uint32_t m_blockSize;													//the size of each memory block to record info
 		  uint32_t m_userSpace;													//the size for user
 		  uint32_t m_tupleLines;
 		  uint32_t m_tupleTotalSize;											//the size of a tuple(including sizeof(MemoryBlock) and m_userSpace)
 		  uint32_t m_poolTotalSize;										    //the total size of the all memory pool
 
+		  std::mutex m_memoryLock;										    //mutex lock for allocate and deallocate
 		  bool m_initStatus;															//the init status of memorypool
 		  void* m_pAddr;														    //the address of memory pool
 		  MemoryBlock* m_pHeader;									    //pheader pointer points to the head of memory block
@@ -57,7 +62,7 @@ class MemoryAllocator : public MemoryPool
 {
 public:
 		  MemoryAllocator()
-					:MemoryPool(UserSpace,TupleLines,sizeof(MemoryBlock))
+					:MemoryPool(UserSpace, TupleLines, sizeof(MemoryBlock))
 		  {
 		  }
 };
@@ -82,8 +87,9 @@ template<typename T> T MemoryPool::allocMem(size_t _size)
 		  /*
 		  * there is no MemoryBlock header because of the pool is run out of free memory ,therefore
 		  * create a temporary memory allocation
+		  * Add a mutex lock in order to avoid multithreading problem
 		  */
-		  if (this->m_pHeader == nullptr) {
+		  if (this->getUnAmbigousHeaderValue()) {
 
 					/*
 					* memorypool needs to manage all the allocated memory,therefore
@@ -102,7 +108,7 @@ template<typename T> T MemoryPool::allocMem(size_t _size)
 
 		  }
 		  else {
-					/* */
+					std::lock_guard<std::mutex> _lckg(this->m_memoryLock);
 					pAllocMem = this->m_pHeader;										  //get empty memory block
 					this->m_pHeader = this->m_pHeader->getNextBlock();	  //move header to the next memory block
 					pAllocMem->setBlockRef(1);											  //set this memory region reference time
@@ -132,6 +138,7 @@ template<typename T> void MemoryPool::freeMem(T _ptr)
 		  * if so, recycle this memory block(just like insert into a linklist from the head)
 		  */
 		  if (_pMemInfo->getBlockStatus()) {
+					std::lock_guard<std::mutex> _lckg(this->m_memoryLock);
 					_pMemInfo->setNextBlock(this->m_pHeader);
 					this->m_pHeader = _pMemInfo;
 		  }
@@ -139,4 +146,5 @@ template<typename T> void MemoryPool::freeMem(T _ptr)
 					::free(_pMemInfo);
 		  }
 }
+
 #endif

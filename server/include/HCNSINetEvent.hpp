@@ -5,6 +5,9 @@
 #include<DataPackage.h>
 #include<ClientSocket.hpp>
 
+template<class ClientType = _ClientSocket>
+class HCNSCellServer;
+
 template<typename ClientType = _ClientSocket>
 class INetEvent
 {
@@ -70,13 +73,15 @@ public:
 		  ) = 0;
 
 		  /*------------------------------------------------------------------------------------------------------
-		  * @function:  virtual void readMessageBody
-		  * @param:  1.[IN] typename std::vector<ClientType*>::iterator _clientSocket
-							  2.[IN] _PackageHeader* _buffer
+			* @function:  virtual void readMessageBody
+			* @param:  1. [IN] typename HCNSCellServer *_cellServer,
+								2. [IN] typename std::vector<ClientType*>::iterator _clientSocket
+								3. [IN] _PackageHeader* _buffer
 
-		  * @description:  process clients' message body
-		  *------------------------------------------------------------------------------------------------------*/
+			* @description:  process clients' message body
+			*------------------------------------------------------------------------------------------------------*/
 		  virtual inline void readMessageBody(
+					IN typename HCNSCellServer<ClientType> *_cellServer,
 					IN typename  std::vector<ClientType*>::iterator _clientSocket,
 					IN _PackageHeader* _header
 		  ) = 0;

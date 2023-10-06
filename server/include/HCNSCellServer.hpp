@@ -9,46 +9,9 @@
 #include<DataPackage.h>
 #include<HCNSTimeStamp.h>
 #include<HCNSINetEvent.hpp>
-#include<HCNSMemoryManagement.hpp>
+#include<HCNSMsgSendTask.hpp>
 
-#if _WIN32
-#pragma comment(lib,"HCNSMemoryPool.lib")
-#endif
-
-/*detour global memory allocation and deallocation functions*/
-void* operator new(size_t _size)
-{
-          return MemoryManagement::getInstance().allocPool<void*>(_size);
-}
-
-void operator delete(void* _ptr)
-{
-          if (_ptr != nullptr) {
-                    MemoryManagement::getInstance().freePool<void*>(_ptr);
-          }
-}
-
-void* operator new[](size_t _size)
-{
-           return ::operator new(_size);
-}
-
-void operator delete[](void* _ptr)
-{
-           operator delete(_ptr);
-}
-
-template<typename T> T memory_alloc(size_t _size)
-{
-          return reinterpret_cast<T>(::malloc(_size));
-}
-
-template<typename T> void memory_free(T _ptr)
-{
-          ::free(reinterpret_cast<void*>(_ptr));
-}
-
-template<class ClientType = _ClientSocket>
+template<class ClientType>
 class HCNSCellServer {
 public:
           HCNSCellServer();
@@ -65,6 +28,10 @@ public:
           void startCellServer();
           size_t getClientsConnectionLoad();
           void pushTemproaryClient(ClientType* _pclient);
+          void pushMessageSendingTask(
+                    IN typename  std::vector<ClientType*>::iterator _clientSocket,
+                    IN _PackageHeader* _header
+          );
 
 private:
           void purgeCloseSocket(ClientType* _pclient);
@@ -111,6 +78,12 @@ private:
 
           /*cell server obj pass a client on leave signal to the tcpserver*/
           INetEvent<ClientType>* m_pNetEvent;
+
+          /*
+          * seperate msg receiving and msg sending into different threads
+          * we can use HCNSTaskDispatcher to manage msg send event
+          */
+          HCNSTaskDispatcher* m_sendTaskDispatcher;
 };
 #endif
 
@@ -131,6 +104,7 @@ HCNSCellServer<ClientType>::HCNSCellServer(
           : m_server_socket(_serverSocket),
           m_interfaceFuture(_future),
           m_pNetEvent(_netEvent),
+          m_sendTaskDispatcher(new HCNSTaskDispatcher),
           m_isClientArrayChanged(true)
 {
 #if _WIN32    
@@ -160,6 +134,7 @@ HCNSCellServer<ClientType>::~HCNSCellServer()
 /*------------------------------------------------------------------------------------------------------
 * start cell server and create a thread for clientRequestProcessing
 * @function: void startCellServer
+* @update: add a method to start HCNSTaskDispatcher thread 
 *------------------------------------------------------------------------------------------------------*/
 template<class ClientType>
 void HCNSCellServer<ClientType>::startCellServer()
@@ -167,6 +142,9 @@ void HCNSCellServer<ClientType>::startCellServer()
           this->m_processingThread = std::thread(
                     std::mem_fn(&HCNSCellServer<ClientType>::clientRequestProcessingThread), this, std::ref(this->m_interfaceFuture)
           );
+
+          /*start HCNSTaskDispatcher thread*/
+          this->m_sendTaskDispatcher->startCellTaskDispatch();
 }
 
 /*------------------------------------------------------------------------------------------------------
@@ -191,6 +169,26 @@ void HCNSCellServer<ClientType>::pushTemproaryClient(ClientType* _pclient)
 {
           std::lock_guard<std::mutex> _lckg(this->m_queueMutex);
           this->m_temporaryClientBuffer.push_back(_pclient);
+}
+
+/*------------------------------------------------------------------------------------------------------
+* expose an interface for producer to transfer processed data into seperated sending thread
+* @function: void pushMessageSendingTask(
+                              IN typename  std::vector<ClientType*>::iterator _clientSocket,
+                              IN _PackageHeader* _header)
+
+* @param: 1.[IN] typename  std::vector<ClientType*>::iterator _clientSocket,
+*                 2.[IN] PackageHeader* _header
+* 
+* @retvalue: HCNSCellTask* _task
+*------------------------------------------------------------------------------------------------------*/
+template<class ClientType>
+void HCNSCellServer<ClientType>::pushMessageSendingTask(
+          IN typename  std::vector<ClientType*>::iterator _clientSocket,
+          IN _PackageHeader* _header)
+{
+          HCNSSendTask<ClientType>* _sendTask(new HCNSSendTask<ClientType>((*_clientSocket), _header));
+          this->m_sendTaskDispatcher->addTemproaryTask(_sendTask);
 }
 
 /*------------------------------------------------------------------------------------------------------
@@ -343,8 +341,8 @@ bool HCNSCellServer<ClientType>::clientDataProcessingLayer(
                               this->m_pNetEvent->addUpPackageCounter();
 
                               //get message header to indentify commands    
-                              //this->m_pNetEvent->readMessageHeader(_clientSocket, reinterpret_cast<_PackageHeader*>(_header));
-                              //this->m_pNetEvent->readMessageBody(_clientSocket, reinterpret_cast<_PackageHeader*>(_header));
+                              this->m_pNetEvent->readMessageHeader(_clientSocket, reinterpret_cast<_PackageHeader*>(_header));
+                              this->m_pNetEvent->readMessageBody(this, _clientSocket, reinterpret_cast<_PackageHeader*>(_header));
                              
                               /* 
                               * delete this message package and modify the array
@@ -414,10 +412,10 @@ void HCNSCellServer<ClientType>::clientRequestProcessingThread(
 
                     /*
                     * size of permanent client container should be valid
-                    * otherwise, sleep for 1 microsecond and continue this loop
+                    * suspend this thread for 1 millisecond in order to block this thread from occupying cpu cycle
                     */
                     if (this->m_clientVec.size() <= 0) {
-                              std::this_thread::sleep_for(std::chrono::microseconds(1));
+                              std::this_thread::sleep_for(std::chrono::milliseconds(1));
                               continue;
                     }
 
@@ -434,7 +432,6 @@ void HCNSCellServer<ClientType>::clientRequestProcessingThread(
                               continue;
                     }
 
-                    ////[POTIENTAL BUG HERE!]: why _clientaddr's dtor was deployed
                     for (auto ib = this->m_clientVec.begin(); ib != this->m_clientVec.end();)
                     {
 
@@ -497,6 +494,9 @@ void HCNSCellServer<ClientType>::shutdownCellServer()
           if (this->m_processingThread.joinable()) {
                     this->m_processingThread.join();
           }
+
+          /*delete HCNSTaskDispatcher and stop msg send event*/
+          delete this->m_sendTaskDispatcher;
 
           /*reset socket*/
           this->m_server_socket = INVALID_SOCKET;

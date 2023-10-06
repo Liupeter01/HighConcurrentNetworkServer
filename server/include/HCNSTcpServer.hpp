@@ -68,6 +68,7 @@ private:
           );
 
           virtual inline void readMessageBody(
+                    IN typename HCNSCellServer<ClientType>* _cellServer,
                     IN typename  std::vector<ClientType*>::iterator _clientSocket,
                     IN _PackageHeader* _header
           );
@@ -599,34 +600,37 @@ void HCNSTcpServer<ClientType>::readMessageHeader(
 }
 
 /*------------------------------------------------------------------------------------------------------
-* @function:  virtual void readMessageBody
-* @param:  1.[IN] typename std::vector<ClientType*>::iterator _clientSocket
-                    2.[IN] _PackageHeader* _buffer
+  * @function:  virtual void readMessageBody
+  * @param:  1. [IN] typename HCNSCellServer *_cellServer,
+                      2. [IN] typename std::vector<ClientType*>::iterator _clientSocket
+                      3. [IN] _PackageHeader* _buffer
 
-* @description:  process clients' message body
-*------------------------------------------------------------------------------------------------------*/
-template<class ClientType> 
+  * @description:  process clients' message body
+  * @problem: in some sceniaro, every cell server thread might generate more newed memory than delete
+  *------------------------------------------------------------------------------------------------------*/
+template<class ClientType>
 void HCNSTcpServer<ClientType>::readMessageBody(
-          IN typename std::vector<ClientType*>::iterator _clientSocket,
-          IN  _PackageHeader* _header)
+          IN typename HCNSCellServer<ClientType>* _cellServer,
+          IN typename  std::vector<ClientType*>::iterator _clientSocket,
+          IN _PackageHeader* _header
+)
 {
           if (_header->_packageCmd == CMD_LOGIN) {
                     _LoginData* loginData(reinterpret_cast<_LoginData*>(_header));
-                    loginData->loginStatus = true;                                                                               //set login status as true
-                    //std::cout << "username = " << loginData->userName
-                    //          << ", userpassword = " << loginData->userPassword << std::endl;
+                    _LoginData* reply(new _LoginData(loginData->userName, loginData->userPassword));
+                    reply->loginStatus = true;                                                                                        //set login status as true
 
-                    (*_clientSocket)->sendDataToClient(loginData, loginData->_packageLength);
+                    _cellServer->pushMessageSendingTask(_clientSocket, reply);
           }
           else if (_header->_packageCmd == CMD_LOGOUT) {
                     _LogoutData* logoutData(reinterpret_cast<_LogoutData*>(_header));
-                    logoutData->logoutStatus = true;                                                                               //set logout status as true
-                    //std::cout << "username = " << logoutData->userName << std::endl;
+                    _LogoutData* reply(new _LogoutData(logoutData->userName));
+                    reply->logoutStatus = true;                                                                                     //set logout status as true
 
-                    (*_clientSocket)->sendDataToClient(logoutData, logoutData->_packageLength);
+                    _cellServer->pushMessageSendingTask(_clientSocket, reply);
           }
           else {
-                    _PackageHeader _error(sizeof(_PackageHeader), CMD_ERROR);
-                    (*_clientSocket)->sendDataToClient(&_error, _error._packageLength);
+                    _PackageHeader* _error(new _PackageHeader(sizeof(_PackageHeader), CMD_ERROR));
+                    _cellServer->pushMessageSendingTask(_clientSocket, _error);
           }
 }
