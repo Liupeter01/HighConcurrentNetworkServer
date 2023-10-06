@@ -11,8 +11,8 @@
      1.Now Network Server won't be blocked by accept client's connection and recv data from the client
      2.introduce multithread processing unit for clients input interface
      3.fix a problem when client enter "exit" in input interface, the client program can not exit normally
+     4.separate the receiving and sending thread
 
- ## Usage
  ## Install
     make -j10   
      
