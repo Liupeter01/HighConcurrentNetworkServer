@@ -111,8 +111,11 @@ private:
           /*record clients connected to HCNSCellServer container*/
           std::atomic<unsigned long long> m_ClientsCounter;
 
-          /*Server High Resolution Clock Model(How Many Packages are recieved per second)*/
-          HCNSTimeStamp* m_timeStamp;
+          /*
+          * Server High Resolution Clock Model(How Many Packages are recieved per second)
+          * origin def:  HCNSTimeStamp* m_timeStamp;
+          */
+          std::shared_ptr<HCNSTimeStamp> m_timeStamp;
 
 #if _WIN32 
           WSADATA m_wsadata;
@@ -137,7 +140,7 @@ template<class ClientType>
 HCNSTcpServer<ClientType>::HCNSTcpServer(
           IN unsigned long _ipAddr, 
           IN unsigned short _ipPort)
-          : m_timeStamp(new HCNSTimeStamp()),
+          : m_timeStamp(std::make_shared<HCNSTimeStamp>()),
           m_interfaceFuture(this->m_interfacePromise.get_future()),
           m_packageCounter(0),
           m_recvCounter(0),
@@ -473,9 +476,6 @@ void HCNSTcpServer<ClientType>::shutdownTcpServer()
 
           /*reset socket*/
           this->m_server_socket = INVALID_SOCKET;
-
-          /*delete server high resolution clock model*/
-          delete this->m_timeStamp;
 
           /*cleanup wsa setup*/
 #if _WIN32                          
