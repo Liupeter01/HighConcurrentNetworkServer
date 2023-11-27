@@ -10,29 +10,6 @@
 #pragma comment(lib,"HCNSMemoryPool.lib")
 #endif
 
-/*detour global memory allocation and deallocation functions*/
-void* operator new(size_t _size)
-{
-          return MemoryManagement::getInstance().allocPool<void*>(_size);
-}
-
-void operator delete(void* _ptr)
-{
-          if (_ptr != nullptr) {
-                    MemoryManagement::getInstance().freePool<void*>(_ptr);
-          }
-}
-
-void* operator new[](size_t _size)
-{
-           return ::operator new(_size);
-}
-
-void operator delete[](void* _ptr)
-{
-           operator delete(_ptr);
-}
-
 template<typename T> T memory_alloc(size_t _size)
 {
           return reinterpret_cast<T>(::malloc(_size));

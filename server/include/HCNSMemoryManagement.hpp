@@ -1,10 +1,16 @@
 ﻿#pragma once
 #ifndef _HCNSMEMMANAGEMENT_H_
 #define _HCNSMEMMANAGEMENT_H_
-#include<array>
-#include<vector>
-#include<initializer_list>
+
 #include<HCNSMemoryAllocator.hpp>
+/*
+ *detour global memory allocation and deallocation functions
+ *use library from HCNSMemoryPool
+ */
+void* operator new(size_t _size);
+void operator delete(void* _ptr);
+void* operator new[](size_t _size);
+void operator delete[](void* _ptr);
 
 /*------------------------------------------------------------------------------------------------------
 * MemoryManagement
@@ -45,7 +51,6 @@ private:
 
 		  std::array<MemoryPool*, 4096> m_memMatching;	//create an array of pointer to match memory units
 };
-#endif
 
 /*------------------------------------------------------------------------------------------------------
 * Alloc memory for the memory pool(using system call command ::malloc)
@@ -103,3 +108,5 @@ template<typename T> void MemoryManagement::freePool(T _ptr)
                     }
           }
 }
+
+#endif

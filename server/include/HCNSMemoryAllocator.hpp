@@ -67,6 +67,8 @@ public:
 		  }
 };
 
+#endif
+
 /*------------------------------------------------------------------------------------------------------
 * Alloc memory for the memory pool(using system call command ::malloc)
 * @function:  T allocMem(size_t _size)
@@ -89,7 +91,7 @@ template<typename T> T MemoryPool::allocMem(size_t _size)
 		  * create a temporary memory allocation
 		  * Add a mutex lock in order to avoid multithreading problem
 		  */
-		  if (this->getUnAmbigousHeaderValue()) {
+		  if (nullptr == this->getUnAmbigousHeaderValue()) {
 
 					/*
 					* memorypool needs to manage all the allocated memory,therefore
@@ -146,5 +148,3 @@ template<typename T> void MemoryPool::freeMem(T _ptr)
 					::free(_pMemInfo);
 		  }
 }
-
-#endif

@@ -2,6 +2,10 @@
 #ifndef _HCNSMEMBLOCK_H_
 #define _HCNSMEMBLOCK_H_
 #include<iostream>
+#include<mutex>
+#include<array>
+#include<vector>
+#include<initializer_list>
 
 /*declare memory pool here*/
 class MemoryPool;
