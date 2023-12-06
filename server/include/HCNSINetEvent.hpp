@@ -17,27 +17,27 @@ public:
 public:
 		  /*------------------------------------------------------------------------------------------------------
 			* virtual function: client connect to server
-			* @function:  void clientOnJoin(ClientType * _pclient)
-			* @param : ClientType * _pclient
+			* @function:  void clientOnJoin(std::shared_ptr <ClientType> _pclient)
+			* @param : [IN] std::shared_ptr <ClientType> _pclient
 			* @multithread safety issue: will only be triggered by only one thread
 			*------------------------------------------------------------------------------------------------------*/
-		  virtual inline void clientOnJoin(ClientType* _pclient) = 0;
+		  virtual inline void clientOnJoin(IN std::shared_ptr <ClientType> _pclient) = 0;
 
 		  /*------------------------------------------------------------------------------------------------------
 		  * virtual function: client terminate connection
-		  * @function:  void clientOnLeave(ClientType * _pclient) 
-		  * @param : ClientType * _pclient
+		  * @function:  void clientOnLeave(std::shared_ptr <ClientType> _pclient) 
+		  * @param : [IN] std::shared_ptr <ClientType> _pclient
 		  * @multithread safety issue: will be triggered by multipule threads, variables should be locked or atomic variables
 		  *------------------------------------------------------------------------------------------------------*/
-		  virtual void clientOnLeave(ClientType * _pclient) = 0;
+		  virtual void clientOnLeave(std::shared_ptr <ClientType> _pclient) = 0;
 
 		  /*------------------------------------------------------------------------------------------------------
 		   * virtual function: add up to the number of recv function calls
-		   * @function:  void addUpRecvCounter(ClientType* _pclient)
-		   * @param : ClientType * _pclient
+		   * @function:  void addUpRecvCounter(std::shared_ptr <ClientType> _pclient)
+		   * @param : [IN] std::shared_ptr <ClientType> _pclient
 		   * @multithread safety issue: will be triggered by multipule threads, variables should be locked or atomic variables
 		   *------------------------------------------------------------------------------------------------------*/
-		  virtual inline void addUpRecvCounter(ClientType* _pclient) = 0;
+		  virtual inline void addUpRecvCounter(std::shared_ptr <ClientType> _pclient) = 0;
 
 		  /*------------------------------------------------------------------------------------------------------
 			* virtual function: add up to the number of clients
@@ -62,27 +62,27 @@ public:
 
 		  /*------------------------------------------------------------------------------------------------------
 		  * @function:  void readMessageHeader
-		  * @param:  1.[IN] typename std::vector<ClientType*>::iterator _clientSocket
+		  * @param:  1.[IN] typename std::vector<std::shared_ptr <ClientType>>::iterator _clientSocket
 							  2.[IN ] _PackageHeader* _header
 
 		  * @description: process clients' message header
 		  *------------------------------------------------------------------------------------------------------*/
 		  virtual inline void readMessageHeader(
-					IN  typename  std::vector<ClientType*>::iterator _clientSocket,
+					IN  typename  std::vector<std::shared_ptr <ClientType>>::iterator _clientSocket,
 					IN _PackageHeader* _header
 		  ) = 0;
 
 		  /*------------------------------------------------------------------------------------------------------
 			* @function:  virtual void readMessageBody
-			* @param:  1. [IN] typename HCNSCellServer *_cellServer,
-								2. [IN] typename std::vector<ClientType*>::iterator _clientSocket
+			* @param:  1. [IN] std::shared_ptr<HCNSCellServer<ClientType>>
+								2. [IN] typename std::vector<std::shared_ptr <ClientType>>::iterator _clientSocket
 								3. [IN] _PackageHeader* _buffer
 
 			* @description:  process clients' message body
 			*------------------------------------------------------------------------------------------------------*/
 		  virtual inline void readMessageBody(
-					IN typename HCNSCellServer<ClientType> *_cellServer,
-					IN typename  std::vector<ClientType*>::iterator _clientSocket,
+					IN std::shared_ptr<HCNSCellServer<ClientType>>,
+					IN typename  std::vector<std::shared_ptr <ClientType>>::iterator _clientSocket,
 					IN _PackageHeader* _header
 		  ) = 0;
 };

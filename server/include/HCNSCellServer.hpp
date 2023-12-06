@@ -29,7 +29,7 @@ public:
           size_t getClientsConnectionLoad();
           void pushTemproaryClient(IN typename  std::vector< std::shared_ptr<ClientType>>::iterator _pclient);
           void pushMessageSendingTask(
-                    IN typename  std::vector<ClientType*>::iterator _clientSocket,
+                    IN typename std::vector< std::shared_ptr<ClientType>>::iterator _clientSocket,
                     IN _PackageHeader* _header
           );
 
@@ -69,12 +69,16 @@ private:
           /*
            * every  cell server have a temporary buffer
            * this client buffer just for temporary storage and all the client should be transfer to clientVec
+           * add memory smart pointer to control memory allocation
           */
           std::mutex m_queueMutex;
-          typename std::vector<ClientType*> m_temporaryClientBuffer;
+          std::vector<std::shared_ptr<ClientType>> m_temporaryClientBuffer;
 
-          /*every cell server thread have one client array(permanent storage)*/
-          typename std::vector<ClientType*> m_clientVec;
+          /*
+           * every cell server thread have one client array(permanent storage)
+           * add memory smart pointer to control memory allocation
+          */
+          std::vector<std::shared_ptr<ClientType>> m_clientVec;
 
           /*cell server obj pass a client on leave signal to the tcpserver*/
           INetEvent<ClientType>* m_pNetEvent;
@@ -168,23 +172,23 @@ template<class ClientType>
 void HCNSCellServer<ClientType>::pushTemproaryClient(IN typename  std::vector< std::shared_ptr<ClientType>>::iterator _pclient)
 {
           std::lock_guard<std::mutex> _lckg(this->m_queueMutex);
-          this->m_temporaryClientBuffer.push_back(_pclient);
+          this->m_temporaryClientBuffer.push_back((*_pclient));
 }
 
 /*------------------------------------------------------------------------------------------------------
 * expose an interface for producer to transfer processed data into seperated sending thread
 * @function: void pushMessageSendingTask(
-                              IN typename  std::vector<ClientType*>::iterator _clientSocket,
+                              IN  typename std::vector< std::shared_ptr<ClientType>>::iterator ,
                               IN _PackageHeader* _header)
 
-* @param: 1.[IN] typename  std::vector<ClientType*>::iterator _clientSocket,
+* @param: 1.[IN] typename std::vector< std::shared_ptr<ClientType>>::iterator ,
 *                 2.[IN] PackageHeader* _header
 * 
 * @retvalue: HCNSCellTask* _task
 *------------------------------------------------------------------------------------------------------*/
 template<class ClientType>
 void HCNSCellServer<ClientType>::pushMessageSendingTask(
-          IN typename  std::vector<ClientType*>::iterator _clientSocket,
+          IN typename std::vector< std::shared_ptr<ClientType>>::iterator  _clientSocket,
           IN _PackageHeader* _header)
 {
           HCNSSendTask<ClientType>* _sendTask(new HCNSSendTask<ClientType>((*_clientSocket), _header));

@@ -63,13 +63,13 @@ private:
           virtual inline void decreaseClientsCounter();
           virtual inline void addUpPackageCounter();
           virtual inline void readMessageHeader(
-                    IN  typename  std::vector<ClientType*>::iterator _clientSocket,
+                    IN  typename  std::vector<std::shared_ptr <ClientType>>::iterator _clientSocket,
                     IN _PackageHeader* _header
           );
 
           virtual inline void readMessageBody(
-                    IN typename HCNSCellServer<ClientType>* _cellServer,
-                    IN typename  std::vector<ClientType*>::iterator _clientSocket,
+                    IN std::shared_ptr<HCNSCellServer<ClientType>> _cellServer,
+                    IN typename  std::vector<std::shared_ptr <ClientType>>::iterator _clientSocket,
                     IN _PackageHeader* _header
           );
 
@@ -576,14 +576,14 @@ inline void HCNSTcpServer<ClientType>::addUpPackageCounter()
 
 /*------------------------------------------------------------------------------------------------------
 * @function:  void readMessageHeader
-* @param:  1.[IN] typename std::vector<ClientType*>::iterator _clientSocket
+* @param:  1.[IN] typename std::vector<std::shared_ptr<ClientType>>::iterator _clientSocket
                     2.[IN ]  _PackageHeader* _header
 
 * @description: process clients' message header
 *------------------------------------------------------------------------------------------------------*/
 template<class ClientType>
 void HCNSTcpServer<ClientType>::readMessageHeader(
-          IN typename std::vector<ClientType*>::iterator _clientSocket,
+          IN typename std::vector<std::shared_ptr<ClientType>>::iterator _clientSocket,
           IN  _PackageHeader* _header)
 {
           /*add up to HCNSTcpServer package counter*/
@@ -603,8 +603,8 @@ void HCNSTcpServer<ClientType>::readMessageHeader(
 
 /*------------------------------------------------------------------------------------------------------
   * @function:  virtual void readMessageBody
-  * @param:  1. [IN] typename HCNSCellServer *_cellServer,
-                      2. [IN] typename std::vector<ClientType*>::iterator _clientSocket
+  * @param:  1. [IN] std::shared_ptr<HCNSCellServer<ClientType>>
+                      2. [IN] typename std::vector<std::shared_ptr<ClientType>>::iterator _clientSocket
                       3. [IN] _PackageHeader* _buffer
 
   * @description:  process clients' message body
@@ -612,8 +612,8 @@ void HCNSTcpServer<ClientType>::readMessageHeader(
   *------------------------------------------------------------------------------------------------------*/
 template<class ClientType>
 void HCNSTcpServer<ClientType>::readMessageBody(
-          IN typename HCNSCellServer<ClientType>* _cellServer,
-          IN typename  std::vector<ClientType*>::iterator _clientSocket,
+          IN std::shared_ptr<HCNSCellServer<ClientType>> _cellServer,
+          IN typename  std::vector<std::shared_ptr<ClientType>>::iterator _clientSocket,
           IN _PackageHeader* _header
 )
 {
