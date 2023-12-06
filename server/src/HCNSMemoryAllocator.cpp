@@ -39,7 +39,7 @@ void * MemoryAllocator::allocPool(size_t _size)
             /* access to the specific memory pool which satisfied the size requirement */
             int _poolMappingindicator = this->findMappingIndex(_size);
 
-            if(_poolMappingindicator){
+            if(_poolMappingindicator != -1){
                     return this->_poolSizeMapping[_poolMappingindicator].allocMem(_size);
             }
             else{

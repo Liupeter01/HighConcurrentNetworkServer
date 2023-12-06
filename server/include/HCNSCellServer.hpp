@@ -27,7 +27,7 @@ public:
 public:
           void startCellServer();
           size_t getClientsConnectionLoad();
-          void pushTemproaryClient(ClientType* _pclient);
+          void pushTemproaryClient(IN typename  std::vector< std::shared_ptr<ClientType>>::iterator _pclient);
           void pushMessageSendingTask(
                     IN typename  std::vector<ClientType*>::iterator _clientSocket,
                     IN _PackageHeader* _header
@@ -161,11 +161,11 @@ size_t HCNSCellServer<ClientType>::getClientsConnectionLoad()
 
 /*------------------------------------------------------------------------------------------------------
 * expose an interface for consumer to insert client connection into the temproary container
-* @function: void pushTemproaryClient(ClientType* _pclient)
-* @retvalue: ClientType* _pclient
+* @function: void pushTemproaryClient(IN typename  std::vector< std::shared_ptr<ClientType>>::iterator _pclient)
+* @retvalue: IN typename  std::vector< std::shared_ptr<ClientType>>::iterator _pclient
 *------------------------------------------------------------------------------------------------------*/
 template<class ClientType>
-void HCNSCellServer<ClientType>::pushTemproaryClient(ClientType* _pclient)
+void HCNSCellServer<ClientType>::pushTemproaryClient(IN typename  std::vector< std::shared_ptr<ClientType>>::iterator _pclient)
 {
           std::lock_guard<std::mutex> _lckg(this->m_queueMutex);
           this->m_temporaryClientBuffer.push_back(_pclient);
