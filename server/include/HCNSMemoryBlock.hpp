@@ -2,10 +2,6 @@
 #ifndef _HCNSMEMBLOCK_H_
 #define _HCNSMEMBLOCK_H_
 #include<iostream>
-#include<mutex>
-#include<array>
-#include<vector>
-#include<initializer_list>
 
 /*declare memory pool here*/
 class MemoryPool;
@@ -16,37 +12,29 @@ class MemoryPool;
 *------------------------------------------------------------------------------------------------------*/
 #pragma pack(push)
 #pragma pack(4)
-class MemoryBlock
+struct MemoryBlock
 {
-public:
-		  MemoryBlock();
-		  MemoryBlock(
-					uint32_t _id, 
-					uint32_t _ref, 
-					MemoryPool* _pool, 
-					MemoryBlock* _next,
-					bool _bstatus
-		  );
-		  virtual ~MemoryBlock();
+		  MemoryBlock()
+		  		:MemoryBlock(0, 0, nullptr, nullptr, false)
+		  {
+		  }
 
-public:
-		  void setBlockStatus(const bool status);
-		  void setBlockID(const uint32_t _id);
-		  void setBlockRef(const uint32_t _ref);
-		  void setBlockRelatePool(MemoryPool* _pool);
-		  void setNextBlock(MemoryBlock* _next);
+		  MemoryBlock(uint32_t _id, uint32_t _ref, MemoryPool* _pool, MemoryBlock* _next,bool _bstatus)
+		            :_blockID(_id),
+				     _blockRefCounter(_ref),
+				     _belongstoPool(_pool),
+				     _nextBlock(_next),
+				     _blockStatus(_bstatus)
+		 {
+		 }
 
-		  MemoryBlock*& getNextBlock();
-		  MemoryPool*& getMemoryPool();
-		  uint32_t& getBlockRef() ;
-		  bool& getBlockStatus();
+		  virtual ~MemoryBlock() = default;
 
-private:
-		  uint32_t m_nID;						  //the number of current memory block
-		  uint32_t m_nRef;						  //the number of memory block reference
-		  MemoryPool* m_pPool;			//which memory pool owns this memory block
-		  MemoryBlock* m_pNext;			//find the next memory block
-		  bool m_bStatus;						  //is the memory block inside the memory pool?
+		  uint32_t 		_blockID;			//Current Memblock Debug ID
+		  uint32_t 		_blockRefCounter;	//Current Memblock Reference Counter
+		  MemoryPool* 	_belongstoPool;		//Current Memblock belongs to which MemoryPool
+		  MemoryBlock* 	_nextBlock;			//Find the next Memblock for next allocation
+		  bool 			_blockStatus;		//Current Memblock inside a MemoryPool(this->_belongstoPool)
 };
 #pragma pack(pop)
 #endif

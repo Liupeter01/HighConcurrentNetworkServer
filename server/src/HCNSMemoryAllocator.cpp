@@ -1,116 +1,83 @@
 #include<HCNSMemoryAllocator.hpp>
 
-MemoryPool::MemoryPool()
-		  :MemoryPool(sizeof(MemoryBlock), nullptr)
+/*------------------------------------------------------------------------------------------------------
+* searching in the array in order to find the mapping index
+* @function: uint32_t *findMappingIndex(const size_t _size)
+* @param : [IN]size_t _size
+* @retvalue: int
+*------------------------------------------------------------------------------------------------------*/
+inline int MemoryAllocator::findMappingIndex(const size_t _size)
 {
-}
-
-MemoryPool::MemoryPool(
-		  uint32_t _blockSize,
-		  void* _pAddr)
-		  : MemoryPool(0, 0, sizeof(MemoryBlock), nullptr)
-{
-}
-
-MemoryPool::MemoryPool(
-		  uint32_t _userspace,
-		  uint32_t _tupleLines,
-		  uint32_t _blockSize,
-		  void* _pAddr)
-		  :m_userSpace(_userspace),
-		  m_tupleLines(_tupleLines),
-		  m_pAddr(_pAddr),
-		  m_pHeader(nullptr),
-		  m_blockSize(_blockSize),
-		  m_initStatus(false)
-{
-		  this->m_tupleTotalSize = this->m_userSpace + this->m_blockSize;				  //the size of a tuple
-		  this->m_poolTotalSize = this->m_tupleTotalSize * this->m_tupleLines;	      //the total size of the all memory pool
-}
-
-MemoryPool::~MemoryPool()
-{
-		  /*check is this->m_paddr nullptr*/
-		  if (this->m_pAddr != nullptr) {
-					::free(this->m_pAddr);
-		  }
+        auto _result =  std::find_if(
+                this->_poolSizeArray,
+                this->_poolSizeArray + POOL_MAXINUM_SIZE,
+                [_size](uint32_t num){
+                        return ((_size <= num));
+                }
+        );
+        if(_result != this->_poolSizeArray + POOL_MAXINUM_SIZE){
+                return _result - this->_poolSizeArray;
+        }
+        else{
+                return -1;
+        }
 }
 
 /*------------------------------------------------------------------------------------------------------
-* start to init memory pool
-* @function:  bool initMemoryPool
-* @retvalue: bool
+* Alloc memory for the memory pool(using system call command ::malloc)
+* @function: void * allocPool(size_t _size)
+* @param :  [IN] size_t _size
+* @retvalue: void *
 *------------------------------------------------------------------------------------------------------*/
-bool MemoryPool::initMemoryPool()
+void * MemoryAllocator::allocPool(size_t _size)
 {
-		  /* check the status of the initital, it should be work at the first time*/
-		  if (!this->m_initStatus || nullptr == this->m_pAddr) {
+            /*invalid memory allocation size*/
+            if (_size <= 0) {
+                    return nullptr;                          //invalid memory allocation
+            }
+        
+            /* access to the specific memory pool which satisfied the size requirement */
+            int _poolMappingindicator = this->findMappingIndex(_size);
 
-					/*
-					* calculate the total size of the required memory
-					* this->m_tupleTotalSize = this->m_tupleLines * (this->m_userSpace + this->m_blockSize)
-					*/
-					this->m_pAddr = reinterpret_cast<void*>(::malloc(this->m_poolTotalSize));
+            if(_poolMappingindicator){
+                    return this->_poolSizeMapping[_poolMappingindicator].allocMem(_size);
+            }
+            else{
+                    /*
+                    * user desired memory much more higher than the memory allocator
+                    * this memory area should be allocated by using memory allocation system call
+                    */
+                    MemoryBlock* pallocPool = reinterpret_cast<MemoryBlock*>(::malloc(_size + sizeof(MemoryBlock)));
+                    pallocPool->_blockStatus = false;			    //this block outside memory pool;
+                    pallocPool->_blockID = -1;
+                    pallocPool->_blockRefCounter = 1;
+                    pallocPool->_belongstoPool = nullptr;         //this memory area doesn't belongs to any memory pool
+                    pallocPool->_nextBlock = nullptr;			    //get next block
 
-					if (nullptr != this->m_pAddr) {
-
-							  /*the first position of the memory block should be the head*/
-							  this->m_pHeader = reinterpret_cast<MemoryBlock*>(this->m_pAddr);
-							  this->m_pHeader->setBlockStatus(true);			//this block inside memory pool;
-							  this->m_pHeader->setBlockID(0);
-							  this->m_pHeader->setBlockRef(0);
-							  this->m_pHeader->setBlockRelatePool(this);
-							  this->m_pHeader->setNextBlock(nullptr);			//get next block
-
-							  /*-----------------------------------------------------------------------------------*
-							   *		  		  		/\   |------MemoryBlock---------|------UserSpace---------
-							   *		  		  		 |   |---sizeof(MemoryBlock)---|------m_userSpace-------
-							   *		  		  		 |   |---sizeof(MemoryBlock)---|------m_userSpace-------
-							   *m_tupleLines |   |---sizeof(MemoryBlock)---|------m_userSpace-------
-							   *		  		  		 |   |---sizeof(MemoryBlock)---|------m_userSpace-------
-							   *		  		  		 |   |---sizeof(MemoryBlock)---|------m_userSpace-------
-							   *		 		  		\/   |---sizeof(MemoryBlock)---|------m_userSpace-------
-							   *------------------------------------------------------------------------------------
-							   *----------------------------------m_tupleTotalSize-----------------------------
-							   *------------------------------------------------------------------------------------
-							   * in order to access to the next memoryblock, the offset of (char)pointer
-							   * should be the size of memoryblock + userspace
-							   */
-							  MemoryBlock* prev = this->m_pHeader;
-							  MemoryBlock* pnext = reinterpret_cast<MemoryBlock*>(
-										reinterpret_cast<char*>(this->m_pAddr) + this->m_tupleTotalSize
-										);
-							  MemoryBlock* pend = reinterpret_cast<MemoryBlock*>(
-										reinterpret_cast<char*>(this->m_pAddr) + (this->m_poolTotalSize)
-										);
-
-							  /* traveral the pool and setup linklist connection!*/
-							  for (; pnext < pend; pnext = reinterpret_cast<MemoryBlock*>(reinterpret_cast<char*>(pnext) + this->m_tupleTotalSize)) {
-										pnext->setBlockStatus(true);			//this block inside memory pool;
-										pnext->setBlockID(0);
-										pnext->setBlockRef(0);
-										pnext->setBlockRelatePool(this);
-										pnext->setNextBlock(nullptr);
-										prev->setNextBlock(pnext);								//get next block
-										prev = pnext;
-							  }
-					}
-					return (this->m_initStatus = true);
-		  }
-		  return false;
+                    return reinterpret_cast<void*>(++pallocPool);
+            }
+          
 }
 
 /*------------------------------------------------------------------------------------------------------
-* get unambigous m_pHeader value (meanwhile, mutex lock should be activated )
-* @function:  MemoryBlock* getUnAmbigousHeaderValue()
-* @param :  [IN] T _ptr
+* freememory for the memory pool(using system call command ::free)
+* @function:  void allocMem(void* _ptr)
+* @param :  [IN] void* 
 *------------------------------------------------------------------------------------------------------*/
-MemoryBlock* MemoryPool::getUnAmbigousHeaderValue()
+void MemoryAllocator::freePool(void* _ptr)
 {
-		  MemoryBlock* _retValue(nullptr);
-		  {
-					std::lock_guard<std::mutex> _lckg(this->m_memoryLock);
-					_retValue = this->m_pHeader;
-		  }
-		  return _retValue;
+          /*calculate pointer offset*/
+          MemoryBlock* _pMemInfo = reinterpret_cast<MemoryBlock*>(
+                reinterpret_cast<char*>(_ptr) - sizeof(MemoryBlock)
+          );
+
+          /*judge whether this memory block belongs to specfic memory pool*/
+          if (_pMemInfo->_blockStatus) {
+                    _pMemInfo->_belongstoPool->freeMem(_ptr);
+          }
+          else { /*outside memory pool*/
+                    if (!(--_pMemInfo->_blockRefCounter)) {
+                              ::free(_pMemInfo);
+                    }
+          }
 }

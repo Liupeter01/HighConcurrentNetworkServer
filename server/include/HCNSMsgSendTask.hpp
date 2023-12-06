@@ -4,10 +4,10 @@
 #include<DataPackage.h>
 #include<ClientSocket.hpp>
 #include<HCNSTaskDispatcher.h>
-#include<HCNSMemoryManagement.hpp>
+#include<HCNSObjectPool.hpp>
 
 #if _WIN32
-#pragma comment(lib,"HCNSMemoryPool.lib")
+#pragma comment(lib,"HCNSMemoryObjectPool.lib")
 #endif
 
 template<typename T> T memory_alloc(size_t _size)
