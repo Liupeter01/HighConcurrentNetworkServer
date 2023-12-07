@@ -363,7 +363,7 @@ void HCNSTcpServer<ClientType>::pushClientToCellServer(IN SOCKET &_clientSocket,
             new ClientType(_clientSocket, _clientAddress)
           };
 
-          this->m_clientInfo.push_back(std::move(_leftClientInfo));
+          this->m_clientInfo.push_back(_leftClientInfo);
 
           /*client join the server*/
           this->clientOnJoin(this->m_clientInfo.end() - 1);
