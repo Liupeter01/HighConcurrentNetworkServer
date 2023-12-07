@@ -31,3 +31,7 @@ lib/HCNSMemory
 /server/lib/HCNSMemoryObjectPool.idb
 /server/lib/HCNSMemoryObjectPool.pdb
 /.gitignore
+/HCNSMemoryObjectPool
+/.gitignore
+/server/lib/HCNSMemoryObjectPool.lib
+/.gitignore
