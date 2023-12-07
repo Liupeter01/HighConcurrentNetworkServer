@@ -10,36 +10,23 @@
 #pragma comment(lib,"HCNSMemoryObjectPool.lib")
 #endif
 
-template<typename T> T memory_alloc(size_t _size)
-{
-          return reinterpret_cast<T>(::malloc(_size));
-}
-
-template<typename T> void memory_free(T _ptr)
-{
-          ::free(reinterpret_cast<void*>(_ptr));
-}
-
 /*transmit send buffer data to the clients*/
 template<class ClientType = _ClientSocket>
 class HCNSSendTask :public HCNSCellTask
 {
 public:
-          HCNSSendTask(ClientType* _client, _PackageHeader* _header)
+          HCNSSendTask() = default;
+          HCNSSendTask(std::shared_ptr<ClientType> _client, std::shared_ptr<_PackageHeader>&& _header)
                     :m_pClient(_client), m_packageHeader(_header) 
           {}
-          virtual ~HCNSSendTask() 
-          {
-                    delete m_pClient;
-                    delete m_packageHeader;
-          }
+          virtual ~HCNSSendTask() = default;
 
 public:
           virtual void excuteTask();
 
 private:
-          ClientType* m_pClient;
-          _PackageHeader* m_packageHeader;
+          std::shared_ptr<ClientType> m_pClient;
+          std::shared_ptr<_PackageHeader> m_packageHeader;
 };
 #endif
 
@@ -51,10 +38,7 @@ template<class ClientType>
 void HCNSSendTask<ClientType>::excuteTask()
 {
           this->m_pClient->sendDataToClient(
-                    this->m_packageHeader, 
+                    this->m_packageHeader.get(), 
                     this->m_packageHeader->_packageLength
           );
-
-          /*we allocate memory at HCNSMsgSendTask::pushMessageSendingTask*/
-          delete this->m_packageHeader;
 }

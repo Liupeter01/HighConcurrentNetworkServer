@@ -30,17 +30,15 @@ public:
           void pushTemproaryClient(IN typename  std::vector< std::shared_ptr<ClientType>>::iterator _pclient);
           void pushMessageSendingTask(
                     IN typename std::vector< std::shared_ptr<ClientType>>::iterator _clientSocket,
-                    IN _PackageHeader* _header
+                    IN std::shared_ptr<_PackageHeader>&& _header
           );
 
 private:
-          void purgeCloseSocket(ClientType* _pclient);
+          void purgeCloseSocket(IN typename std::vector< std::shared_ptr<ClientType>>::iterator _pclient);
           int getLargestSocketValue();
           void initServerIOMultiplexing();
           bool initServerSelectModel();
-          bool clientDataProcessingLayer(
-                    IN typename std::vector<ClientType*>::iterator _clientSocket
-          );
+          bool clientDataProcessingLayer(IN typename std::vector< std::shared_ptr<ClientType>>::iterator _clientSocket);
           void clientRequestProcessingThread(IN std::shared_future<bool>& _future);
           void shutdownCellServer();
 
@@ -80,14 +78,19 @@ private:
           */
           std::vector<std::shared_ptr<ClientType>> m_clientVec;
 
-          /*cell server obj pass a client on leave signal to the tcpserver*/
+          /*
+           * cell server obj pass a client on leave signal to the tcpserver
+           * WARNING!:this is a delegation structure, so using shared_ptr to protect its memory is unacceptable!
+           */
           INetEvent<ClientType>* m_pNetEvent;
 
           /*
           * seperate msg receiving and msg sending into different threads
           * we can use HCNSTaskDispatcher to manage msg send event
+          * HCNSTaskDispatcher* m_sendTaskDispatcher
+          * add memory smart pointer to control memory allocation
           */
-          HCNSTaskDispatcher* m_sendTaskDispatcher;
+          std::shared_ptr<HCNSTaskDispatcher> m_sendTaskDispatcher;
 };
 #endif
 
@@ -167,6 +170,7 @@ size_t HCNSCellServer<ClientType>::getClientsConnectionLoad()
 * expose an interface for consumer to insert client connection into the temproary container
 * @function: void pushTemproaryClient(IN typename  std::vector< std::shared_ptr<ClientType>>::iterator _pclient)
 * @retvalue: IN typename  std::vector< std::shared_ptr<ClientType>>::iterator _pclient
+* @warning!: PLEASE DO NOT USE RIGHT VALUE(std::move)!!! IT IS A COPY!!! 
 *------------------------------------------------------------------------------------------------------*/
 template<class ClientType>
 void HCNSCellServer<ClientType>::pushTemproaryClient(IN typename  std::vector< std::shared_ptr<ClientType>>::iterator _pclient)
@@ -178,39 +182,44 @@ void HCNSCellServer<ClientType>::pushTemproaryClient(IN typename  std::vector< s
 /*------------------------------------------------------------------------------------------------------
 * expose an interface for producer to transfer processed data into seperated sending thread
 * @function: void pushMessageSendingTask(
-                              IN  typename std::vector< std::shared_ptr<ClientType>>::iterator ,
-                              IN _PackageHeader* _header)
+            IN  typename std::vector< std::shared_ptr<ClientType>>::iterator  _clientSocket,
+            IN  std::shared_ptr<_PackageHeader>&& _header)
 
-* @param: 1.[IN] typename std::vector< std::shared_ptr<ClientType>>::iterator ,
-*                 2.[IN] PackageHeader* _header
+* @param: 1.[IN] typename std::vector< std::shared_ptr<ClientType>>::iterator  _clientSocket
+*         2.[IN] std::shared_ptr<_PackageHeader>&& _header
 * 
-* @retvalue: HCNSCellTask* _task
+* [performance enhance]: using std::move to move a left value to the right!
 *------------------------------------------------------------------------------------------------------*/
 template<class ClientType>
 void HCNSCellServer<ClientType>::pushMessageSendingTask(
           IN typename std::vector< std::shared_ptr<ClientType>>::iterator  _clientSocket,
-          IN _PackageHeader* _header)
+          IN std::shared_ptr<_PackageHeader>&& _header)
 {
-          HCNSSendTask<ClientType>* _sendTask(new HCNSSendTask<ClientType>((*_clientSocket), _header));
-          this->m_sendTaskDispatcher->addTemproaryTask(_sendTask);
+          std::shared_ptr<HCNSSendTask<ClientType>> _leftSendTask{
+            new HCNSSendTask<ClientType>(
+                  (*_clientSocket), 
+                  std::forward<std::shared_ptr<_PackageHeader>>(_header)
+                  )
+          };
+          
+          this->m_sendTaskDispatcher->addTemproaryTask(std::move(_leftSendTask));
 }
 
 /*------------------------------------------------------------------------------------------------------
 * shutdown and terminate network connection 
-* @function: void pushTemproaryClient(ClientType* _pclient)
-* @retvalue: ClientType* _pclient
+* @function: void pushTemproaryClient(IN typename std::vector< std::shared_ptr<ClientType>>::iterator)
+* @param: [IN] typename std::vector< std::shared_ptr<ClientType>>::iterator
 *------------------------------------------------------------------------------------------------------*/
 template<class ClientType>
-void HCNSCellServer<ClientType>::purgeCloseSocket(ClientType* _pclient)
+void HCNSCellServer<ClientType>::purgeCloseSocket(IN typename std::vector< std::shared_ptr<ClientType>>::iterator _pclient)
 {
 #if _WIN32
-          ::shutdown(_pclient->getClientSocket(), SD_BOTH);                        //disconnect I/O
-          ::closesocket(_pclient->getClientSocket());                                        //release socket completely!! 
+          ::shutdown((*_pclient)->getClientSocket(), SD_BOTH);                        //disconnect I/O
+          ::closesocket((*_pclient)->getClientSocket());                                        //release socket completely!! 
 #else 
-          ::shutdown(_pclient->getClientSocket(), SHUT_RDWR);                 //disconnect I/O and keep recv buffer
-          ::close(_pclient->getClientSocket());                                                   //release socket completely!! 
+          ::shutdown((*_pclient)->getClientSocket(), SHUT_RDWR);                 //disconnect I/O and keep recv buffer
+          ::close((*_pclient)->getClientSocket());                                                   //release socket completely!! 
 #endif
-          delete _pclient;
 }
 
 /*------------------------------------------------------------------------------------------------------
@@ -300,18 +309,17 @@ bool HCNSCellServer<ClientType>::initServerSelectModel()
 
 /*------------------------------------------------------------------------------------------------------
 * @function:  dataProcessingLayer
-* @param: [IN] typename std::vector<ClientType*>::iterator
+* @param: [IN] typename std::vector< std::shared_ptr<ClientType>>::iterator _clientSocket
 * @description: process the request from clients
 * @retvalue : bool
 * @update: in order to enhance the performance of the server, we are going to
 *           remove m_szRecvBuffer in cellserver and serveral memcpy functions
 *------------------------------------------------------------------------------------------------------*/
 template<class ClientType>
-bool HCNSCellServer<ClientType>::clientDataProcessingLayer(
-          IN typename std::vector<ClientType*>::iterator _clientSocket)
+bool HCNSCellServer<ClientType>::clientDataProcessingLayer(IN typename std::vector< std::shared_ptr<ClientType>>::iterator _clientSocket)
 {
           /*add up to recv counter*/
-          this->m_pNetEvent->addUpRecvCounter((*_clientSocket));
+          this->m_pNetEvent->addUpRecvCounter(_clientSocket);
 
           /* We don't need to recv and store data in HCNScellServer::m_szRecvBuffer
           *  we can recv and store data in every class clientsocket directly
@@ -390,8 +398,7 @@ bool HCNSCellServer<ClientType>::clientDataProcessingLayer(
 * @param: IN std::shared_future<bool>& _future
 *------------------------------------------------------------------------------------------------------*/
 template<class ClientType>
-void HCNSCellServer<ClientType>::clientRequestProcessingThread(
-          IN std::shared_future<bool>& _future)
+void HCNSCellServer<ClientType>::clientRequestProcessingThread(IN std::shared_future<bool>& _future)
 {
           while (true) 
           {
@@ -455,11 +462,11 @@ void HCNSCellServer<ClientType>::clientRequestProcessingThread(
 
                                                   /*notify the tcp server to delete it from the container and dealloc it's memory*/
                                                   if (this->m_pNetEvent != nullptr) {
-                                                            this->m_pNetEvent->clientOnLeave((*ib));
+                                                            this->m_pNetEvent->clientOnLeave(ib);
                                                   }
 
                                                   /*modify code from just delete (*ib) to shutdown socket first and then delete*/
-                                                  this->purgeCloseSocket((*ib));
+                                                  this->purgeCloseSocket(ib);
 
                                                   /* erase Current unavailable client's socket(no longer needs to dealloc it's memory)*/
                                                   ib = this->m_clientVec.erase(ib);
@@ -490,17 +497,14 @@ void HCNSCellServer<ClientType>::shutdownCellServer()
           -------------------------------------------------------------------------*/
           for (auto ib = this->m_clientVec.begin(); ib != this->m_clientVec.end(); ib++) 
           {
-                    this->m_pNetEvent->clientOnLeave((*ib));
-                    this->purgeCloseSocket((*ib));
+                    this->m_pNetEvent->clientOnLeave(ib);
+                    this->purgeCloseSocket(ib);
           }
           this->m_clientVec.clear();                                            //clean the std::vector container
 
           if (this->m_processingThread.joinable()) {
                     this->m_processingThread.join();
           }
-
-          /*delete HCNSTaskDispatcher and stop msg send event*/
-          delete this->m_sendTaskDispatcher;
 
           /*reset socket*/
           this->m_server_socket = INVALID_SOCKET;
