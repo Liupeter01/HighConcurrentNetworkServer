@@ -23,7 +23,8 @@ public:
 		  virtual ~HCNSTaskDispatcher();
 
 public:
-		  void addTemproaryTask(HCNSCellTask* _cellTask);
+		  //void addTemproaryTask(HCNSCellTask* _cellTask);
+		  void addTemproaryTask(std::shared_ptr<HCNSCellTask> && _cellTask);
 		  void startCellTaskDispatch();
 
 private:
@@ -33,8 +34,8 @@ private:
 private:
 		  /*temproary and permanent storage for tasks*/
 		  std::mutex m_temproaryMutex;
-		  std::list<HCNSCellTask*> m_temproaryTaskList;
-		  std::list<HCNSCellTask*> m_mainTaskList;
+		  std::list<std::shared_ptr<HCNSCellTask>> m_temproaryTaskList;
+		  std::list<std::shared_ptr<HCNSCellTask>> m_mainTaskList;
 
 		  /*start a thread for task processing*/
 		  std::thread m_taskThread;

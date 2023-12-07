@@ -9,11 +9,7 @@ class HCNSTcpServer :public INetEvent<ClientType>
 public:
           HCNSTcpServer();
           HCNSTcpServer(IN unsigned short _ipPort);
-          HCNSTcpServer(
-                    IN unsigned long _ipAddr, 
-                    IN unsigned short _ipPort
-          );
-
+          HCNSTcpServer(IN unsigned long _ipAddr, IN unsigned short _ipPort);
           virtual ~HCNSTcpServer();
 
 public:
@@ -39,16 +35,13 @@ public:
           void serverMainFunction(IN const unsigned int _threadNumber);
 
 private:
-          void purgeCloseSocket(IN ClientType* _pclient);
-          void initServerAddressBinding(
-                    unsigned long _ipAddr,
-                    unsigned short _port
-          );
+          void purgeCloseSocket(IN typename  std::vector< std::shared_ptr<ClientType>>::iterator _pclient);
+          void initServerAddressBinding(unsigned long _ipAddr,unsigned short _port);
 
           bool initServerSelectModel(IN SOCKET _largestSocket);
           void serverInterfaceLayer(IN OUT std::promise<bool>& interfacePromise);
 
-          void pushClientToCellServer(IN ClientType* _client);
+          void pushClientToCellServer(IN SOCKET &_clientSocket,IN sockaddr_in &_clientAddress);
           void clientConnectionThread();
 
           void getClientsUploadSpeed();
@@ -56,20 +49,22 @@ private:
           void shutdownTcpServer();
 
 private:
-          virtual inline void clientOnJoin(ClientType* _pclient);
-          virtual void clientOnLeave(ClientType* _pclient);
-          virtual void addUpRecvCounter(ClientType* _pclient);
+          virtual inline void clientOnJoin(IN typename  std::vector< std::shared_ptr<ClientType>>::iterator _pclient);
+          virtual void clientOnLeave(IN typename  std::vector< std::shared_ptr<ClientType>>::iterator _pclient);
+          virtual void addUpRecvCounter(IN typename  std::vector< std::shared_ptr<ClientType>>::iterator _pclient);
+
+
           virtual inline void addUpClientsCounter();
           virtual inline void decreaseClientsCounter();
           virtual inline void addUpPackageCounter();
           virtual inline void readMessageHeader(
-                    IN  typename  std::vector<ClientType*>::iterator _clientSocket,
+                    IN  typename  std::vector<std::shared_ptr <ClientType>>::iterator _clientSocket,
                     IN _PackageHeader* _header
           );
 
           virtual inline void readMessageBody(
-                    IN typename HCNSCellServer<ClientType>* _cellServer,
-                    IN typename  std::vector<ClientType*>::iterator _clientSocket,
+                    IN HCNSCellServer<ClientType>* _cellServer,
+                    IN typename  std::vector<std::shared_ptr<ClientType>>::iterator _clientSocket,
                     IN _PackageHeader* _header
           );
 
@@ -95,12 +90,19 @@ private:
           fd_set m_fdexception;
           timeval m_timeoutSetting{ 0/*0 s*/, 0 /*0 ms*/ };
 
-          /*HCNSCellServer(Consumer Thread)*/
-          std::vector<HCNSCellServer<ClientType>*> m_cellServer;
+          /*
+          * std::shared_ptr<HCNSCellServer> (Consumer Thread)
+          * add memory smart pointer to control memory allocation
+          */
+          std::vector<std::shared_ptr<HCNSCellServer<ClientType>>> m_cellServer;
 
-          /*HCNSCellServer should record all the connection*/
+          /*
+          * std::shared_ptr<ClientType>
+          * HCNSCellServer should record all the connection
+          * add memory smart pointer to record all the connection
+          */
           std::mutex m_clientRWLock;
-          typename std::vector<ClientType*> m_clientInfo;
+           std::vector< std::shared_ptr<ClientType>> m_clientInfo;
 
           /*record recv function calls*/
           std::atomic<unsigned long long> m_recvCounter;
@@ -137,9 +139,7 @@ HCNSTcpServer<ClientType>::HCNSTcpServer(IN unsigned short _ipPort)
 }
 
 template<class ClientType>
-HCNSTcpServer<ClientType>::HCNSTcpServer(
-          IN unsigned long _ipAddr, 
-          IN unsigned short _ipPort)
+HCNSTcpServer<ClientType>::HCNSTcpServer( IN unsigned long _ipAddr,  IN unsigned short _ipPort)
           : m_timeStamp(std::make_shared<HCNSTimeStamp>()),
           m_interfaceFuture(this->m_interfacePromise.get_future()),
           m_packageCounter(0),
@@ -243,7 +243,7 @@ void HCNSTcpServer<ClientType>::serverMainFunction(IN const unsigned int _thread
           );
 
           for (int i = 0; i < _threadNumber; ++i) {
-                    this->m_cellServer.push_back(
+                    std::shared_ptr<HCNSCellServer<ClientType>>_leftCellServer(
                               new HCNSCellServer<ClientType>(
                                         this->m_server_socket,
                                         this->m_server_address,
@@ -251,6 +251,7 @@ void HCNSTcpServer<ClientType>::serverMainFunction(IN const unsigned int _thread
                                         this
                               )
                     );
+                    this->m_cellServer.push_back(std::move(_leftCellServer));
           }
           for (auto ib = this->m_cellServer.begin(); ib != this->m_cellServer.end(); ib++) {
                     (*ib)->startCellServer();
@@ -259,21 +260,21 @@ void HCNSTcpServer<ClientType>::serverMainFunction(IN const unsigned int _thread
 
 /*------------------------------------------------------------------------------------------------------
 * shutdown and terminate network connection
-* @function: void pushTemproaryClient(ClientType* _pclient)
-* @param: [IN] ClientType* _pclient
+* @function: void pushTemproaryClient(IN typename  std::vector< std::shared_ptr<ClientType>>::iterator _pclient)
+* @param: [IN] typename  std::vector< std::shared_ptr<ClientType>>::iterator _pclient
+* @update: add smart pointer to control memory
 *------------------------------------------------------------------------------------------------------*/
 template<class ClientType>
-void HCNSTcpServer<ClientType>::purgeCloseSocket(IN ClientType* _pclient)
+void HCNSTcpServer<ClientType>::purgeCloseSocket(IN typename  std::vector< std::shared_ptr<ClientType>>::iterator _pclient)
 {
           this->decreaseClientsCounter();
 #if _WIN32
-          ::shutdown(_pclient->getClientSocket(), SD_BOTH);                        //disconnect I/O
-          ::closesocket(_pclient->getClientSocket());                                        //release socket completely!! 
+          ::shutdown((*_pclient)->getClientSocket(), SD_BOTH);                        //disconnect I/O
+          ::closesocket((*_pclient)->getClientSocket());                                        //release socket completely!! 
 #else 
-          ::shutdown(_pclient->getClientSocket(), SHUT_RDWR);                 //disconnect I/O and keep recv buffer
-          ::close(_pclient->getClientSocket());                                                   //release socket completely!! 
+          ::shutdown((*_pclient)->getClientSocket(), SHUT_RDWR);                 //disconnect I/O and keep recv buffer
+          ::close((*_pclient)->getClientSocket());                                                   //release socket completely!! 
 #endif
-          delete _pclient;
 }
 
 /*------------------------------------------------------------------------------------------------------
@@ -281,12 +282,10 @@ void HCNSTcpServer<ClientType>::purgeCloseSocket(IN ClientType* _pclient)
 * @function: void initServerAddressBinding
 * @implementation: create server socket and bind ip address info
 * @param : 1.[IN] unsigned long _ipAddr
-                    2.[IN] unsigned short _port
+           2.[IN] unsigned short _port
 *------------------------------------------------------------------------------------------------------*/
 template<class ClientType>
-void HCNSTcpServer<ClientType>::initServerAddressBinding(
-          unsigned long _ipAddr,
-          unsigned short _port)
+void HCNSTcpServer<ClientType>::initServerAddressBinding(unsigned long _ipAddr,unsigned short _port)
 {
           if ((this->m_server_socket = createServerSocket()) == INVALID_SOCKET) {
                     return;
@@ -331,8 +330,7 @@ bool HCNSTcpServer<ClientType>::initServerSelectModel(IN SOCKET _largestSocket)
 * @param : 1.[IN OUT]  std::promise<bool> &interfacePromise
 * ------------------------------------------------------------------------------------------------------ */
 template<class ClientType>
-void HCNSTcpServer<ClientType>::serverInterfaceLayer(
-          IN OUT std::promise<bool>& interfacePromise)
+void HCNSTcpServer<ClientType>::serverInterfaceLayer(IN OUT std::promise<bool>& interfacePromise)
 {
           while (true)
           {
@@ -350,18 +348,25 @@ void HCNSTcpServer<ClientType>::serverInterfaceLayer(
 }
 
 /*------------------------------------------------------------------------------------------------------
-* push client's structure into a std::vector<HCNSCellServer*>::iterator
-* the total ammount of the clients should be the lowest among other  std::vector<HCNSCellServer*>::iterator
-* @function: void :pushClientToCellServer(ClientType* _client)
-* @param: ClientType* _client
+* push client's structure into a std::vector<std::shared_ptr<HCNSCellServer>>::iterator
+* the total ammount of the clients should be the lowest among other  std::vector<std::shared_ptr<HCNSCellServer>>::iterator
+* @function: void :pushClientToCellServer(IN SOCKET &_clientSocket,IN sockaddr_in &_clientAddress)
+* @param: 1.[IN] SOCKET &_clientSocket
+          2.[IN] IN sockaddr_in &_clientAddress
+* 
+* @update:create a smart pointer inside the scale of the function and use std::move to transfer a left value to right value 
 *------------------------------------------------------------------------------------------------------*/
 template<class ClientType>
-void HCNSTcpServer<ClientType>::pushClientToCellServer(IN ClientType* _client)
+void HCNSTcpServer<ClientType>::pushClientToCellServer(IN SOCKET &_clientSocket,IN sockaddr_in &_clientAddress)
 {
-          /*client join the server*/
-          this->clientOnJoin(_client);
+          std::shared_ptr<ClientType> _leftClientInfo{
+            new ClientType(_clientSocket, _clientAddress)
+          };
 
-          this->m_clientInfo.push_back(_client);
+          this->m_clientInfo.push_back(std::move(_leftClientInfo));
+
+          /*client join the server*/
+          this->clientOnJoin(this->m_clientInfo.end() - 1);
 
           auto _lowest = this->m_cellServer.begin();
           for (auto ib = this->m_cellServer.begin(); ib != this->m_cellServer.end(); ++ib) {
@@ -371,7 +376,7 @@ void HCNSTcpServer<ClientType>::pushClientToCellServer(IN ClientType* _client)
                               _lowest = ib;
                     }
           }
-          (*_lowest)->pushTemproaryClient(_client);
+          (*_lowest)->pushTemproaryClient(this->m_clientInfo.end() - 1);
 }
 
 /*------------------------------------------------------------------------------------------------------
@@ -408,7 +413,7 @@ void HCNSTcpServer<ClientType>::clientConnectionThread()
                               );
 
                               /* put client's connection stucture to the back of the queue*/
-                              this->pushClientToCellServer(new ClientType(_clientSocket, _clientAddress));
+                              this->pushClientToCellServer(_clientSocket, _clientAddress);
                     }
           }
 }
@@ -450,14 +455,11 @@ void HCNSTcpServer<ClientType>::shutdownTcpServer()
 {
           /*shutdown all the clients' connection in client info container*/
           for (auto ib = this->m_clientInfo.begin(); ib != this->m_clientInfo.end(); ib++) {
-                    this->purgeCloseSocket((*ib));
+                    this->purgeCloseSocket(ib);
           }
           this->m_clientInfo.clear();
 
           /*close all the clients' connection in this cell server*/
-          for (auto ib = this->m_cellServer.begin(); ib != this->m_cellServer.end(); ib++){
-                    delete (*ib);
-          }
           this->m_cellServer.clear(); 
 
           for (auto ib = this->th_tcpServerThreadPool.begin(); ib != this->th_tcpServerThreadPool.end(); ib++) {
@@ -485,32 +487,32 @@ void HCNSTcpServer<ClientType>::shutdownTcpServer()
 
 /*------------------------------------------------------------------------------------------------------
   * virtual function: client connect to server
-  * @function:  void clientOnJoin(ClientType * _pclient)
-  * @param : ClientType * _pclient
+  * @function:  void clientOnJoin(typename  std::vector< std::shared_ptr<ClientType>>::iterator _pclient)
+  * @param : [IN] typename  std::vector< std::shared_ptr<ClientType>>::iterator _pclient
   *------------------------------------------------------------------------------------------------------*/
 template<class ClientType>
-inline void HCNSTcpServer<ClientType>::clientOnJoin(ClientType* _pclient)
+inline void HCNSTcpServer<ClientType>::clientOnJoin(IN typename  std::vector< std::shared_ptr<ClientType>>::iterator _pclient)
 {
           this->addUpClientsCounter();
 
-          std::cout << "Accept Client's Connection<Socket =" << static_cast<int>(_pclient->getClientSocket()) << ","
-                    << inet_ntoa(_pclient->getClientAddr()) << ":" << _pclient->getClientPort() << ">" << std::endl;
+          std::cout << "Accept Client's Connection<Socket =" << static_cast<int>((*_pclient)->getClientSocket()) << ","
+                    << inet_ntoa((*_pclient)->getClientAddr()) << ":" << (*_pclient)->getClientPort() << ">" << std::endl;
 }
 
 /*------------------------------------------------------------------------------------------------------
 * virtual function: client terminate connection
-* @function:  void clientOnLeave(ClientType * _pclient)
-* @param : ClientType * _pclient
+* @function:  void clientOnLeave(IN typename  std::vector< std::shared_ptr<ClientType>>::iterator _pclient)
+* @param : [IN] typename  std::vector< std::shared_ptr<ClientType>>::iterator _pclient
 * @multithread safety issue: will be triggered by multipule threads, variables should be locked or atomic variables
 *------------------------------------------------------------------------------------------------------*/
 template<class ClientType>
-void HCNSTcpServer<ClientType>::clientOnLeave(ClientType* _pclient)
+void HCNSTcpServer<ClientType>::clientOnLeave(IN typename  std::vector< std::shared_ptr<ClientType>>::iterator _pclient)
 {
           /* decrease m_clientCounter */
           this->decreaseClientsCounter();
 
-          std::cout << "Terminate Client's Connection<Socket =" << static_cast<int>(_pclient->getClientSocket()) << ","
-                    << inet_ntoa(_pclient->getClientAddr()) << ":" << _pclient->getClientPort() << ">" << std::endl;
+          std::cout << "Terminate Client's Connection<Socket =" << static_cast<int>((*_pclient)->getClientSocket()) << ","
+                    << inet_ntoa((*_pclient)->getClientAddr()) << ":" << (*_pclient)->getClientPort() << ">" << std::endl;
 
           /*
           * in clientOnLeave function, the scale of the lock have to cover the all block of the code
@@ -518,8 +520,8 @@ void HCNSTcpServer<ClientType>::clientOnLeave(ClientType* _pclient)
           */
           std::lock_guard<std::mutex> _lckg(this->m_clientRWLock);
           for (int i = 0; i < this->m_clientInfo.size(); ++i) {
-                    if (this->m_clientInfo[i] == _pclient) {
-                              typename std::vector<ClientType*>::iterator iter = this->m_clientInfo.begin() + i;
+                    if (this->m_clientInfo[i]->getClientSocket() == (*_pclient)->getClientSocket()) {
+                             typename  std::vector< std::shared_ptr<ClientType>>::iterator iter = this->m_clientInfo.begin() + i;
                               if (iter != this->m_clientInfo.end()) {
                                         this->m_clientInfo.erase(iter);
                               }
@@ -529,12 +531,12 @@ void HCNSTcpServer<ClientType>::clientOnLeave(ClientType* _pclient)
 
 /*------------------------------------------------------------------------------------------------------
  * virtual function: add up to the number of recv function calls
- * @function:  void addUpRecvCounter(ClientType* _pclient)
- * @param : ClientType * _pclient
+ * @function:  void addUpRecvCounter(IN typename  std::vector< std::shared_ptr<ClientType>>::iterator _pclient)
+ * @param : [IN] typename  std::vector< std::shared_ptr<ClientType>>::iterator _pclient
  * @multithread safety issue: will be triggered by multipule threads, variables should be locked or atomic variables
  *------------------------------------------------------------------------------------------------------*/
 template<class ClientType>
-inline void HCNSTcpServer<ClientType>::addUpRecvCounter(ClientType* _pclient)
+inline void HCNSTcpServer<ClientType>::addUpRecvCounter(IN typename  std::vector< std::shared_ptr<ClientType>>::iterator _pclient)
 {
           this->m_recvCounter++;
 }
@@ -574,14 +576,14 @@ inline void HCNSTcpServer<ClientType>::addUpPackageCounter()
 
 /*------------------------------------------------------------------------------------------------------
 * @function:  void readMessageHeader
-* @param:  1.[IN] typename std::vector<ClientType*>::iterator _clientSocket
+* @param:  1.[IN] typename std::vector<std::shared_ptr<ClientType>>::iterator _clientSocket
                     2.[IN ]  _PackageHeader* _header
 
 * @description: process clients' message header
 *------------------------------------------------------------------------------------------------------*/
 template<class ClientType>
 void HCNSTcpServer<ClientType>::readMessageHeader(
-          IN typename std::vector<ClientType*>::iterator _clientSocket,
+          IN typename std::vector<std::shared_ptr<ClientType>>::iterator _clientSocket,
           IN  _PackageHeader* _header)
 {
           /*add up to HCNSTcpServer package counter*/
@@ -601,36 +603,40 @@ void HCNSTcpServer<ClientType>::readMessageHeader(
 
 /*------------------------------------------------------------------------------------------------------
   * @function:  virtual void readMessageBody
-  * @param:  1. [IN] typename HCNSCellServer *_cellServer,
-                      2. [IN] typename std::vector<ClientType*>::iterator _clientSocket
-                      3. [IN] _PackageHeader* _buffer
+  * @param:  1. [IN] HCNSCellServer<ClientType>*: this param is perpare for HCNSCellServer this pointer
+             2. [IN] typename std::vector<std::shared_ptr<ClientType>>::iterator _clientSocket
+             3. [IN] _PackageHeader* _buffer
 
   * @description:  process clients' message body
   * @problem: in some sceniaro, every cell server thread might generate more newed memory than delete
   *------------------------------------------------------------------------------------------------------*/
 template<class ClientType>
 void HCNSTcpServer<ClientType>::readMessageBody(
-          IN typename HCNSCellServer<ClientType>* _cellServer,
-          IN typename  std::vector<ClientType*>::iterator _clientSocket,
+          IN HCNSCellServer<ClientType>* _cellServer,
+          IN typename  std::vector<std::shared_ptr<ClientType>>::iterator _clientSocket,
           IN _PackageHeader* _header
 )
 {
           if (_header->_packageCmd == CMD_LOGIN) {
                     _LoginData* loginData(reinterpret_cast<_LoginData*>(_header));
-                    _LoginData* reply(new _LoginData(loginData->userName, loginData->userPassword));
-                    reply->loginStatus = true;                                                                                        //set login status as true
-
-                    _cellServer->pushMessageSendingTask(_clientSocket, reply);
+                    std::shared_ptr<_LoginData> reply{
+                        new _LoginData(loginData->userName, loginData->userPassword)
+                    };
+                    reply->loginStatus = true;                                                  //set login status as true
+                    _cellServer->pushMessageSendingTask(_clientSocket, std::move(reply));
           }
           else if (_header->_packageCmd == CMD_LOGOUT) {
                     _LogoutData* logoutData(reinterpret_cast<_LogoutData*>(_header));
-                    _LogoutData* reply(new _LogoutData(logoutData->userName));
-                    reply->logoutStatus = true;                                                                                     //set logout status as true
-
-                    _cellServer->pushMessageSendingTask(_clientSocket, reply);
+                    std::shared_ptr<_LogoutData> reply{
+                        new _LogoutData(logoutData->userName)
+                    };
+                    reply->logoutStatus = true;                                                 //set logout status as true
+                    _cellServer->pushMessageSendingTask(_clientSocket, std::move(reply));
           }
           else {
-                    _PackageHeader* _error(new _PackageHeader(sizeof(_PackageHeader), CMD_ERROR));
-                    _cellServer->pushMessageSendingTask(_clientSocket, _error);
+                    std::shared_ptr<_PackageHeader> _error{
+                        new _PackageHeader(sizeof(_PackageHeader), CMD_ERROR)
+                    };
+                    _cellServer->pushMessageSendingTask(_clientSocket, std::move(_error));
           }
 }

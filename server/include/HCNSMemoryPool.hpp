@@ -14,12 +14,20 @@
 class MemoryPool
 {
 public:
-		  MemoryPool();
-		  MemoryPool(uint32_t allocate_size,uint32_t blocks_count);
-		  virtual ~MemoryPool();
+		  MemoryPool()
+				:MemoryPool(0, 0)
+		  {}
+		  MemoryPool(uint32_t allocate_size,uint32_t blocks_count)
+		  		  :_allocateMemSpace(allocate_size),_blocksCount(blocks_count)
+		  {}
 
-		  void setAllocateSize(uint32_t size);
-		  void setBlocksCount(uint32_t count);
+		  virtual ~MemoryPool(){
+				if (this->_poolMemBase != nullptr) 
+					::free(this->_poolMemBase);
+		  }
+
+		  void setAllocateSize(uint32_t size){this->_allocateMemSpace = size;}
+		  void setBlocksCount(uint32_t count){this->_blocksCount  = count;}
 		  bool initMemoryPool();
 		  void* allocMem(size_t _size);
 		  void freeMem(void* _ptr);

@@ -21,13 +21,16 @@ HCNSTaskDispatcher::~HCNSTaskDispatcher()
 
 /*------------------------------------------------------------------------------------------------------
 * producer thread add HCNSCellTask* _cellTask into the m_temproaryTaskList
-* @function: void addTemproaryClient(HCNSCellTask* _cellTask)
-* @param: HCNSCellTask* _cellTask
+* @description: perfect forwarding a righr value reference to enhance performance!
+* @function: void addTemproaryClient(std::shared_ptr<HCNSCellTask> && _cellTask)
+* @param:[IN] std::shared_ptr<HCNSCellTask>>
 *------------------------------------------------------------------------------------------------------*/
-void HCNSTaskDispatcher::addTemproaryTask(HCNSCellTask* _cellTask)
+void HCNSTaskDispatcher::addTemproaryTask(std::shared_ptr<HCNSCellTask> && _cellTask)
 {
           std::lock_guard<std::mutex> _lckg(this->m_temproaryMutex);
-          m_temproaryTaskList.push_back(_cellTask);
+          m_temproaryTaskList.push_back(
+                std::forward<std::shared_ptr<HCNSCellTask>>(_cellTask)
+          );
 }
 
 /*------------------------------------------------------------------------------------------------------
@@ -43,7 +46,7 @@ void HCNSTaskDispatcher::taskProcessingThread()
                     {
                               std::lock_guard<std::mutex> _lckg(this->m_temproaryMutex);
                               for (auto ib = this->m_temproaryTaskList.begin(); ib != this->m_temproaryTaskList.end(); ++ib) {
-                                        this->m_mainTaskList.push_back(*ib);
+                                        this->m_mainTaskList.push_back(std::move(*ib));
                               }
                               this->m_temproaryTaskList.clear();
                     }
@@ -57,8 +60,7 @@ void HCNSTaskDispatcher::taskProcessingThread()
                     }
 
                     /*deal with maintask*/
-                    for (auto ib = this->m_mainTaskList.begin(); ib != this->m_mainTaskList.end(); ib++)
-                    {
+                    for (auto ib = this->m_mainTaskList.begin(); ib != this->m_mainTaskList.end(); ib++){
                               (*ib)->excuteTask();
                     }
                     this->m_mainTaskList.clear();
