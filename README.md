@@ -19,7 +19,7 @@
  ## MemoryObjectPool Usage
     1.MemoryObjectPool Macro Headerfile: #include<HCNSMemoryAllocator.hpp>    
     2.Macro Defination:
-      	1) How Many MemoryPool Blocks could be use?
+      	1) How Many MemoryPool Blocks(per one size) will be created?
            MEMORYPOOL_BLOCK_COUNT
 
        2) MemoryPool Blocks Size List:
