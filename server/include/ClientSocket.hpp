@@ -55,6 +55,18 @@ public:
 
           void increaseMsgBufferPos(unsigned int _increaseSize);
           void decreaseMsgBufferPos(unsigned int _decreaseSize);
+          void resetMsgBufferPos();
+
+          unsigned int getSendPtrPos() const;
+          unsigned int getSendBufFullSpace() const;
+          unsigned int getSendBufRemainSpace() const;
+
+          char* getSendBufferHead();
+          char* getSendBufferTail();
+
+          void increaseSendBufferPos(unsigned int _increaseSize);
+          void decreaseSendBufferPos(unsigned int _decreaseSize);
+          void resetSendBufferPos();
 
           template<typename T> void sendDataToClient(
                     IN T* _szSendBuf,
@@ -70,10 +82,22 @@ private:
           SOCKET m_clientSocket;
           sockaddr_in m_clientAddr;
 
-          const unsigned int m_szMsgBufSize = 4096 * 10 ;                       //100KB
+          /*
+          * additional buffer space for clientDataProcessingLayer()
+          * server recive buffer(retrieve much data as possible from kernel)
+          */
+          const unsigned int m_szMsgBufSize = 4096 * 10 ;                       //4MB
           unsigned long m_szMsgPtrPos = 0;                                               //message pointer location pos
           unsigned long m_szRemainSpace = m_szMsgBufSize;                        //remain space
           std::shared_ptr<char> m_szMsgBuffer;                                        //find available data from server recive buffer
+
+          /*
+          * server send buffer(create a thread and push multipule data to each client) 
+          */
+          const unsigned int m_szSendBufSize = 4096 * 10;                       //4MB
+          unsigned long m_szSendPtrPos = 0;                                               //message pointer location pos
+          unsigned long m_szSendRemainSpace = m_szSendBufSize;       //remain space
+          std::shared_ptr<char> m_szSendBuffer;                                        //send buffer
 };
 #endif
 
@@ -83,11 +107,85 @@ private:
                     2.[IN] int _szBufferSize
 *------------------------------------------------------------------------------------------------------*/
 template<typename T>
-void _ClientSocket::sendDataToClient(
-          IN T* _szSendBuf,
-          IN int _szBufferSize)
+void _ClientSocket::sendDataToClient(IN T* _szSendBuf, IN int _szBufferSize)
 {
-          ::send(this->m_clientSocket, reinterpret_cast<const char*>(_szSendBuf), _szBufferSize, 0);
+          int retvalue(SOCKET_ERROR);
+
+          /*
+          * scenario:
+          *     1.this->getSendBufFullSpace() - this->getSendPtrPos() <= _szBufferSize
+          *           there is no space in buffer _szSendBuf, so we should send them first and clean the buffer
+          *           second, we have to store the rest of the buffer
+          *
+          *     2.this->getSendBufFullSpace() - this->getSendPtrPos() > _szBufferSize
+          */
+          while (true)
+          {
+                    /* there is no space in buffer _szSendBuf, we have to send it to the client*/
+                    if (this->getSendPtrPos() + _szBufferSize >= this->getSendBufFullSpace()) {
+
+                              /* calculate valid memcpy data length */
+                              int _validCopyLength = this->getSendBufFullSpace() - this->getSendPtrPos();
+
+                              /*append _szSendBuf to the tail of the send buffer and it has to follow the constraint of _validCopyLength*/
+#if _WIN32    
+                              memcpy_s(
+                                        reinterpret_cast<void*>(this->getSendBufferTail()),
+                                        _validCopyLength,
+                                        reinterpret_cast<void*>(_szSendBuf),
+                                        _validCopyLength
+                              );
+#else        
+                              memcpy(
+                                        reinterpret_cast<void*>(this->getSendBufferTail()),
+                                        reinterpret_cast<void*>(_szSendBuf),
+                                        _validCopyLength
+                              );
+#endif
+
+                              /*send all the data to client*/
+                              retvalue = ::send(
+                                        this->m_clientSocket,
+                                        reinterpret_cast<const char*>(this->getSendBufferHead()),
+                                        this->getSendBufFullSpace(), 
+                                        0
+                              );
+
+                              if (retvalue == SOCKET_ERROR) {
+                                        return;
+                              }
+
+                              /*
+                              * move the offset of sendbuffer pointer
+                              * recalculate the rest size of the sendbuffer
+                              */
+                              _szSendBuf = reinterpret_cast<T*>(reinterpret_cast<char*>(_szSendBuf) + _validCopyLength);
+                              _szBufferSize = _szBufferSize - _validCopyLength;
+
+                              /*reset send buffer counter*/
+                              this->resetSendBufferPos();
+                    }
+                    else
+                    {
+                              /* we have enough room in the buffer, so append _szSendBuf to the tail of the send buffer */
+#if _WIN32    
+                              memcpy_s(
+                                        reinterpret_cast<void*>(this->getSendBufferTail()),
+                                        this->getSendBufRemainSpace(),
+                                        reinterpret_cast<void*>(_szSendBuf),
+                                        _szBufferSize
+                              );
+#else        
+                              memcpy(
+                                        reinterpret_cast<void*>(this->getSendBufferTail()),
+                                        reinterpret_cast<void*>(_szSendBuf),
+                                        _szBufferSize
+                              );
+#endif
+                              this->increaseSendBufferPos(_szBufferSize);
+                              break;
+                    }
+          }
 }
 
 /*------------------------------------------------------------------------------------------------------

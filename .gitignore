@@ -23,3 +23,15 @@ server/build
 /server/src/HCNSMemoryPool.pdb
 /server/src/HCNSMemoryPool.lib
 lib/HCNSMemory
+/HCNSObjectPool
+/x64
+/server/src/HCNSObjectPool.idb
+/server/src/HCNSObjectPool.lib
+/server/src/HCNSObjectPool.pdb
+/server/lib/HCNSMemoryObjectPool.idb
+/server/lib/HCNSMemoryObjectPool.pdb
+/.gitignore
+/HCNSMemoryObjectPool
+/.gitignore
+/server/lib/HCNSMemoryObjectPool.lib
+/.gitignore

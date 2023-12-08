@@ -10,7 +10,8 @@ _ClientSocket::_ClientSocket(
           IN SOCKET& _socket,
           IN sockaddr_in& _addr)
           :m_clientSocket(_socket),
-          m_szMsgBuffer(new char[m_szMsgBufSize] {0})
+          m_szMsgBuffer(new char[m_szMsgBufSize] {0}),
+          m_szSendBuffer(new char[m_szSendBufSize] {0})
 {
           ::memcpy(
                     reinterpret_cast<void*>(&this->m_clientAddr),
@@ -81,4 +82,53 @@ void  _ClientSocket::decreaseMsgBufferPos(unsigned int _decreaseSize)
 {
           this->m_szMsgPtrPos -= _decreaseSize;
           this->m_szRemainSpace += _decreaseSize;
+}
+
+void _ClientSocket::resetMsgBufferPos()
+{
+          this->m_szMsgPtrPos = 0;
+          this->m_szRemainSpace = this->m_szMsgBufSize;
+}
+
+unsigned int _ClientSocket::getSendPtrPos() const
+{
+          return this->m_szSendPtrPos;
+}
+
+unsigned int _ClientSocket::getSendBufFullSpace() const
+{
+          return this->m_szSendBufSize;
+}
+
+unsigned int _ClientSocket::getSendBufRemainSpace() const
+{
+          return this->m_szSendRemainSpace;
+}
+
+char* _ClientSocket::getSendBufferHead()
+{
+          return this->m_szSendBuffer.get();
+}
+
+char* _ClientSocket::getSendBufferTail()
+{
+          return this->m_szSendBuffer.get() + this->getSendPtrPos();
+}
+
+void _ClientSocket::increaseSendBufferPos(unsigned int _increaseSize)
+{
+          this->m_szSendPtrPos += _increaseSize;
+          this->m_szSendRemainSpace -= _increaseSize;
+}
+
+void _ClientSocket::decreaseSendBufferPos(unsigned int _decreaseSize)
+{
+          this->m_szSendPtrPos -= _decreaseSize;
+          this->m_szSendRemainSpace += _decreaseSize;
+}
+
+void _ClientSocket::resetSendBufferPos()
+{
+          this->m_szSendPtrPos = 0;
+          this->m_szSendRemainSpace = this->m_szSendBufSize;
 }

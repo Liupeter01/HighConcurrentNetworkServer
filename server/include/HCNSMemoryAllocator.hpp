@@ -1,142 +1,109 @@
-#pragma once
-#ifndef _HCNSMEMORYPOOL_H_
-#define _HCNSMEMORYPOOL_H_
-#include<HCNSMemoryBlock.hpp>
+﻿#pragma once
+#ifndef _HCNSMEMMANAGEMENT_H_
+#define _HCNSMEMMANAGEMENT_H_
 
-/*---------------------------------------------------------------------------------------------------
-* class MemoryPool
-* UserSpace: expect MemoryBlock, this space is designed to allocate for the user
-* TupleLines: the total lines of the array
-* ---------------------------------------------------------------------------------------------------*/
-class MemoryPool
+#include<HCNSMemoryPool.hpp>
+
+/*
+    the available size of memory pool is : 8-4096
+    8 16 32 64 128 256 512 1024 2048 4096
+*/
+#define POOL_MAXINUM_SIZE 10                      //how many pools are managed by MemoryAllocator
+#define MEMORYPOOL_BLOCK_COUNT 1000               //how many blocks are created per one size
+#define MEMORYPOOL_BLOCK_SZ8 (8)
+#define MEMORYPOOL_BLOCK_SZ16 (16)
+#define MEMORYPOOL_BLOCK_SZ32 (32)
+#define MEMORYPOOL_BLOCK_SZ64 (64)
+#define MEMORYPOOL_BLOCK_SZ128 (128)
+#define MEMORYPOOL_BLOCK_SZ256 (256)
+#define MEMORYPOOL_BLOCK_SZ512 (512)
+#define MEMORYPOOL_BLOCK_SZ1024 (1024)
+#define MEMORYPOOL_BLOCK_SZ2048 (2048)
+#define MEMORYPOOL_BLOCK_SZ4096 (4096)
+
+/*------------------------------------------------------------------------------------------------------
+* MemoryAllocator
+*------------------------------------------------------------------------------------------------------*/
+class MemoryAllocator
 {
-public:
-		  MemoryPool();
-		  MemoryPool(
-					uint32_t _blockSize = sizeof(MemoryBlock),
-					void* _pAddr = nullptr
-		  );
-		  MemoryPool(
-					uint32_t _userspace,
-					uint32_t _tupleLines,
-					uint32_t _blockSize = sizeof(MemoryBlock),
-					void* _pAddr = nullptr
-		  );
-		  virtual ~MemoryPool();
+protected:
+          MemoryAllocator()= default;
+          
+          MemoryAllocator(const MemoryAllocator &) = delete;
+          MemoryAllocator& operator=(const MemoryAllocator&) = delete;
 
-public:
-		  bool initMemoryPool();
-		  template<typename T> T allocMem(size_t _size);
-		  template<typename T> void freeMem(T _ptr);
+          template<typename ...MemorySpaceArgs>
+          MemoryAllocator(uint32_t blocks_count,MemorySpaceArgs ...args);
 
 private:
-		   /*-----------------------------------------------------------------------------------*
-			*		  		  		/\   |------MemoryBlock---------|------UserSpace---------
-			*		  		  		 |   |---sizeof(MemoryBlock)---|------m_userSpace-------
-			*		  		  		 |   |---sizeof(MemoryBlock)---|------m_userSpace-------
-			*m_tupleLines  |   |---sizeof(MemoryBlock)---|------m_userSpace-------
-			*		  		  		 |   |---sizeof(MemoryBlock)---|------m_userSpace-------
-			*		  		  		 |   |---sizeof(MemoryBlock)---|------m_userSpace-------
-			*		 		  		\/   |---sizeof(MemoryBlock)---|------m_userSpace-------
-			*------------------------------------------------------------------------------------
-			*----------------------------------m_tupleTotalSize-----------------------------
-			*------------------------------------------------------------------------------------*/
-		  uint32_t m_blockSize;													//the size of each memory block to record info
-		  uint32_t m_userSpace;													//the size for user
-		  uint32_t m_tupleLines;
-		  uint32_t m_tupleTotalSize;											//the size of a tuple(including sizeof(MemoryBlock) and m_userSpace)
-		  uint32_t m_poolTotalSize;										    //the total size of the all memory pool
+         /*this function is the terminate condition for the recursive ctor function*/
+         void createMemoryManageObject(uint32_t blocks_count){}
 
-		  bool m_initStatus;															//the init status of memorypool
-		  void* m_pAddr;														    //the address of memory pool
-		  MemoryBlock* m_pHeader;									    //pheader pointer points to the head of memory block
-};
+         template<typename Value, typename ...MemorySpaceArgs>
+         void createMemoryManageObject(uint32_t blocks_count, Value t, MemorySpaceArgs ... args);
+        
+         inline int findMappingIndex(const size_t _size);
 
-template<size_t UserSpace, size_t TupleLines>
-class MemoryAllocator : public MemoryPool
-{
 public:
-		  MemoryAllocator()
-					:MemoryPool(UserSpace,TupleLines,sizeof(MemoryBlock))
-		  {
-		  }
+          template<typename ...MemorySpaceArgs>
+          static MemoryAllocator& getInstance(uint32_t blocks_count,MemorySpaceArgs ... args);
+
+          void * allocPool(size_t _size); 
+		  void freePool(void* _ptr); 
+
+private:
+         uint32_t retrieveMaxMemorySize = 0;                      //get the maxinum memory block size
+         uint32_t _poolSizeArray[POOL_MAXINUM_SIZE];              //record an index to specifc memory pool(_poolSizeMapping)
+         uint32_t _poolSizePos = 0;                               //record memory poolsize array maxinum pos
+         
+         MemoryPool _poolSizeMapping[POOL_MAXINUM_SIZE];
 };
 
-/*------------------------------------------------------------------------------------------------------
-* Alloc memory for the memory pool(using system call command ::malloc)
-* @function:  T allocMem(size_t _size)
-* @param :  [IN] size_t _size
-* @retvalue: T
-*------------------------------------------------------------------------------------------------------*/
-template<typename T> T MemoryPool::allocMem(size_t _size)
+template<typename ...MemorySpaceArgs>
+MemoryAllocator::MemoryAllocator(uint32_t blocks_count,MemorySpaceArgs ...args)
 {
-		  MemoryBlock* pAllocMem(nullptr);
-		  /*
-		  * if pool hasn't been inited and allocated with memory
-		  * then try to use malloc to allocate memory
-		  */
-		  if (!this->m_initStatus || this->m_pAddr == nullptr) {
-					this->initMemoryPool();
-		  }
-
-		  /*
-		  * there is no MemoryBlock header because of the pool is run out of free memory ,therefore
-		  * create a temporary memory allocation
-		  */
-		  if (this->m_pHeader == nullptr) {
-
-					/*
-					* memorypool needs to manage all the allocated memory,therefore
-					* we need an additional descriptor size (sizeof(MemoryBlock)) add up to the totoal size
-					*/
-					auto additional_size = _size + sizeof(MemoryBlock);
-					MemoryBlock* pAdd = reinterpret_cast<MemoryBlock*>(::malloc(additional_size));
-
-					pAdd->setBlockStatus(false);					  //this block outside memory pool;
-					pAdd->setBlockID(0);
-					pAdd->setBlockRef(1);
-					pAdd->setBlockRelatePool(this);
-					pAdd->setNextBlock(nullptr);				  //get next block
-
-					pAllocMem = pAdd;								  //
-
-		  }
-		  else {
-					/* */
-					pAllocMem = this->m_pHeader;										  //get empty memory block
-					this->m_pHeader = this->m_pHeader->getNextBlock();	  //move header to the next memory block
-					pAllocMem->setBlockRef(1);											  //set this memory region reference time
-		  }
-		  /* !!! jump the memoryblock scale !!!*/
-		  return reinterpret_cast<T>(++pAllocMem);
+    this->createMemoryManageObject(blocks_count,args...);
 }
 
 /*------------------------------------------------------------------------------------------------------
-* freememory for the memory pool(using system call command ::free)
-* @function:  void allocMem(T_ptr)
-* @param :  [IN] T _ptr
+* according to MemoryAllocator ctor's arguments to create data structure.
+* @function: void createMemoryManageObject(uint32_t blocks_count,Value t,MemorySpaceArgs ...args)
+* @description: variadic template
+* @param : 1.[IN]uint32_t blocks_count
+           2.[IN]Value t
+           3.[IN]MemorySpaceArgs ...args
 *------------------------------------------------------------------------------------------------------*/
-template<typename T> void MemoryPool::freeMem(T _ptr)
+template<typename Value, typename ...MemorySpaceArgs>
+void MemoryAllocator::createMemoryManageObject(uint32_t blocks_count, Value t,MemorySpaceArgs ... args) 
 {
-		  /*calculate pointer offset*/
-		  MemoryBlock* _pMemInfo = reinterpret_cast<MemoryBlock*>(
-					reinterpret_cast<char*>(_ptr) - sizeof(MemoryBlock)
-					);
+   /*this->_poolSizePos should never larger than bound!!!*/
+   if(this->_poolSizePos != POOL_MAXINUM_SIZE){
+        this->_poolSizeArray[this->_poolSizePos] = static_cast<uint32_t>(t);
+        this->_poolSizeMapping[this->_poolSizePos].setAllocateSize(static_cast<uint32_t>(t));
+        this->_poolSizeMapping[this->_poolSizePos++].setBlocksCount(static_cast<uint32_t>(blocks_count));
 
-		  /* see is there any other references to this memory region, the number should lower than 2*/
-		  if ((--_pMemInfo->getBlockRef())) {				// reference still exist, memory pool can not recycle this memory block
-					return;
-		  }
-		  /*
-		  * is the memory block inside the memory pool?
-		  * if so, recycle this memory block(just like insert into a linklist from the head)
-		  */
-		  if (_pMemInfo->getBlockStatus()) {
-					_pMemInfo->setNextBlock(this->m_pHeader);
-					this->m_pHeader = _pMemInfo;
-		  }
-		  else { /*outside memory pool*/
-					::free(_pMemInfo);
-		  }
+        /*find the max memory block size*/
+        if(this->retrieveMaxMemorySize <= static_cast<uint32_t>(t)){            
+                this->retrieveMaxMemorySize = static_cast<uint32_t>(t);
+        }
+        this->createMemoryManageObject(blocks_count,args...);
+   }
 }
+
+/*------------------------------------------------------------------------------------------------------
+* get the singleton MemoryAllocator instance
+* @function: MemoryAllocator& getInstance(uint32_t blocks_count,MemorySpaceArgs ... args)
+* @param: 1.[IN] uint32_t blocks_count
+          2.[IN] MemorySpaceArgs ... args
+
+* @retvalue: MemoryAllocator&
+*------------------------------------------------------------------------------------------------------*/
+template<typename ...MemorySpaceArgs>
+MemoryAllocator& MemoryAllocator::getInstance(uint32_t blocks_count,MemorySpaceArgs ... args)
+{
+    /* we pack our arguments in a MemoryAllocator&() function,the bind is there to avoid some gcc bug */
+    static MemoryAllocator instance(blocks_count,args...);
+    return instance;
+}
+
 #endif

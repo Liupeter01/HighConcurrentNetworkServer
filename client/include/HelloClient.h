@@ -96,11 +96,11 @@ private:
           SOCKET m_client_socket;                           //client connection socket
           sockaddr_in m_server_address;
 
-          /*memory buffer*/
-          const unsigned int m_szRecvBufSize = 2048;                  //4MB
-          std::shared_ptr<char> m_szRecvBuffer;                                       //server recive buffer(retrieve much data as possible from kernel)
-
-          const unsigned int m_szMsgBufSize = 2048 * 10;           //40MB
+           /*
+           * memory buffer
+           * additional buffer space for dataProcessingLayer()
+           */
+          const unsigned int m_szMsgBufSize = 4048 * 10;           //40MB
           unsigned long m_szMsgPtrPos = 0;                                               //message pointer location pos
           std::shared_ptr<char> m_szMsgBuffer;                                        //find available data from server recive buffer
 
