@@ -2,6 +2,7 @@
 #ifndef _CLIENTSOCKET_H_
 #define _CLIENTSOCKET_H_
 #include<iostream>
+#include<HCNSObjectPool.hpp>
 
 #if _WIN32             //Windows Enviorment  
 /*break the limitaion of the select model size*/
@@ -32,7 +33,11 @@ typedef sockaddr_in SOCKADDR_IN;
 #define OUT         //param output sign
 #endif
 
-class _ClientSocket {
+/*
+* inherited from HCNSObjectPool and we init 10000 _ClientSocket objects in the pool
+* In order to create a objectpool, a memorypool will be created first!
+*/
+class _ClientSocket : public HCNSObjectPool<_ClientSocket,10000> {
 public:
           _ClientSocket();
           _ClientSocket(

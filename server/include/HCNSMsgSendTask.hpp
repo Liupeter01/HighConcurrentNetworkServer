@@ -4,7 +4,6 @@
 #include<DataPackage.h>
 #include<ClientSocket.hpp>
 #include<HCNSTaskDispatcher.h>
-#include<HCNSObjectPool.hpp>
 
 #if _WIN32
 #pragma comment(lib,"HCNSMemoryObjectPool.lib")

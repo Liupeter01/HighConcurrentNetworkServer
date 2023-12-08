@@ -82,5 +82,6 @@ void HCNSTaskDispatcher::startCellTaskDispatch()
 *------------------------------------------------------------------------------------------------------*/
 void HCNSTaskDispatcher::purgeRemoveTaskList()
 {
-
+			this->m_mainTaskList.clear();
+			this->m_temproaryTaskList.clear();
 }

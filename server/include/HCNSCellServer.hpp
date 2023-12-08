@@ -11,8 +11,14 @@
 #include<HCNSINetEvent.hpp>
 #include<HCNSMsgSendTask.hpp>
 
+/*
+* inherited from HCNSObjectPool and we init 4 HCNSCellServer objects in the pool
+* In order to create a objectpool, a memorypool will be created first!
+*/
 template<class ClientType>
-class HCNSCellServer {
+class HCNSCellServer 
+      :public HCNSObjectPool<HCNSCellServer<ClientType>,4> 
+{
 public:
           HCNSCellServer();
           HCNSCellServer(

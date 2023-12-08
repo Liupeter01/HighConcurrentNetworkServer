@@ -10,15 +10,8 @@ _PackageHeader::_PackageHeader(unsigned long _len)
 {
 }
 
-_PackageHeader::_PackageHeader(
-          unsigned long _len,
-          unsigned long _cmd)
-          :_packageLength(_len),
-          _packageCmd(_cmd)
-{
-}
-
-_PackageHeader::~_PackageHeader()
+_PackageHeader::_PackageHeader(unsigned long _len,unsigned long _cmd)
+    :_packageLength(_len),_packageCmd(_cmd)
 {
 }
 
@@ -27,9 +20,7 @@ _LoginData::_LoginData()
 {
 }
 
-_LoginData::_LoginData(
-          const std::string _usrName,
-          const std::string _usrPassword)
+_LoginData::_LoginData(std::string &&_usrName,std::string &&_usrPassword)
           :_PackageHeader(sizeof(_LoginData), CMD_LOGIN)
 {
 #if _WIN32 || WIN32  //windows
@@ -41,16 +32,12 @@ _LoginData::_LoginData(
 #endif
 }
 
-_LoginData::~_LoginData()
-{
-}
-
 _LogoutData::_LogoutData()
           : _LogoutData("Unkown User")
 {
 }
 
-_LogoutData::_LogoutData(const std::string _usrName)
+_LogoutData::_LogoutData(std::string &&_usrName)
           : _PackageHeader(sizeof(_LogoutData), CMD_LOGOUT)
 {
 #if _WIN32 || WIN32  //windows
@@ -60,18 +47,12 @@ _LogoutData::_LogoutData(const std::string _usrName)
 #endif
 }
 
-_LogoutData:: ~_LogoutData()
-{
-}
-
 _SystemData::_SystemData()
           :_SystemData("Unkown Host", "Unkown RunTime")
 {
 }
 
-_SystemData::_SystemData(
-          const std::string _serverName,
-          const std::string _serverRunTime)
+_SystemData::_SystemData(std::string &&_serverName,std::string &&_serverRunTime)
           : _PackageHeader(sizeof(_SystemData), CMD_SYSTEM)
 {
 #if _WIN32 || WIN32  //windows
@@ -83,28 +64,17 @@ _SystemData::_SystemData(
 #endif
 }
 
-_SystemData::~_SystemData()
-{
-}
-
 _BoardCast::_BoardCast()
           :_BoardCast(std::string("0.0.0.0"), 0)
 {
 }
 
-_BoardCast::_BoardCast(
-          const std::string _ip,
-          const  unsigned short _port)
-          :_PackageHeader(sizeof(_BoardCast), CMD_BOARDCAST),
-          new_port(_port)
+_BoardCast::_BoardCast(std::string&& _ip,unsigned short _port)
+        :_PackageHeader(sizeof(_BoardCast), CMD_BOARDCAST),new_port(_port)
 {
 #if _WIN32 || WIN32  //windows
           strcpy_s(this->new_ip, _ip.c_str());
 #else                //Unix/Linux/Macos
           strcpy(this->new_ip, _ip.c_str());
 #endif
-}
-
-_BoardCast::~_BoardCast()
-{
 }
