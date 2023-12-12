@@ -9,10 +9,11 @@
 enum PackageCommand
 {
           CMD_UNKOWN,              //package still in init status
-          CMD_LOGIN,                    //login command
-          CMD_LOGOUT,                 //login logout
-          CMD_SYSTEM,                   //acquire server system info
-          CMD_BOARDCAST,          //server send boardcast package to other client
+          CMD_LOGIN,               //login command
+          CMD_LOGOUT,              //login logout
+          CMD_SYSTEM,              //acquire server system info
+          CMD_PULSE_DETECTION,     //find out whether client is disconnected
+          CMD_BOARDCAST,           //server send boardcast package to other client
           CMD_ERROR
 };
 
@@ -24,8 +25,8 @@ struct _PackageHeader
 {
           _PackageHeader();
           _PackageHeader(unsigned long _len);
-          _PackageHeader(unsigned long _len,unsigned long _cmd);
-          virtual ~_PackageHeader(){}
+          _PackageHeader(unsigned long _len, unsigned long _cmd);
+          virtual ~_PackageHeader() {}
           unsigned long _packageLength;
           unsigned long _packageCmd;
 };
@@ -33,8 +34,8 @@ struct _PackageHeader
 struct _LoginData :public _PackageHeader
 {
           _LoginData();
-          _LoginData(std::string &&_usrName,std::string &&_usrPassword);
-          virtual ~_LoginData(){}
+          _LoginData(std::string&& _usrName, std::string&& _usrPassword);
+          virtual ~_LoginData() {}
 
 public:
           char userName[32]{ 0 };
@@ -45,20 +46,19 @@ public:
 struct _LogoutData :public _PackageHeader
 {
           _LogoutData();
-          _LogoutData(std::string &&_usrName);
-          virtual ~_LogoutData(){}
+          _LogoutData(std::string&& _usrName);
+          virtual ~_LogoutData() {}
 
 public:
           char userName[32]{ 0 };
           bool logoutStatus = false;
 };
 
-
 struct _SystemData :public _PackageHeader
 {
           _SystemData();
-          _SystemData(std::string && _serverName, std::string && _serverRunTime);
-          virtual ~_SystemData(){}
+          _SystemData(std::string&& _serverName, std::string&& _serverRunTime);
+          virtual ~_SystemData() {}
 
 public:
           char serverName[32]{ 0 };
@@ -68,12 +68,19 @@ public:
 struct _BoardCast :public _PackageHeader
 {
           _BoardCast();
-          _BoardCast(std::string && _ip,unsigned short _port);
-          virtual ~_BoardCast(){}
+          _BoardCast(std::string&& _ip, unsigned short _port);
+          virtual ~_BoardCast() {}
 
 public:
           char new_ip[32]{ 0 };
           unsigned short  new_port;
 };
 
+struct _PULSE :public _PackageHeader {
+          _PULSE() :_PackageHeader(sizeof(_PULSE), CMD_PULSE_DETECTION)
+          {
+          }
+
+          virtual ~_PULSE() {};
+};
 #endif 
