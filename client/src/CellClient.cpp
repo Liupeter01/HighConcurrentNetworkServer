@@ -1,8 +1,9 @@
-#include"HelloClient.h"
+#include<CellClient.hpp>
 
-HelloClient::HelloClient()
+CellClient::CellClient()
           :m_interfaceFuture(m_interfacePromise.get_future()),
-          m_szMsgBuffer(new char[m_szMsgBufSize] {0})
+          m_szMsgBuffer(new char[m_szMsgBufSize] {0}),
+          m_szSendBuffer(new char[m_szSendBufSize] {0})
 {
 #if _WIN32                          //Windows Enviormen
           WSAStartup(MAKEWORD(2, 2), &m_wsadata);
@@ -13,7 +14,7 @@ HelloClient::HelloClient()
           }
 }
 
-HelloClient::~HelloClient()
+CellClient::~CellClient()
 {
 #if _WIN32                                                   //Windows Enviorment
           ::shutdown(this->m_client_socket, SD_BOTH); //disconnect I/O
@@ -35,7 +36,7 @@ HelloClient::~HelloClient()
 *                   2.[IN] int type
 *                   3.[IN] int protocol
 *------------------------------------------------------------------------------------------------------*/
-SOCKET HelloClient::createClientSocket(
+SOCKET CellClient::createClientSocket(
           IN int af,
           IN int type,
           IN int protocol)
@@ -50,7 +51,7 @@ SOCKET HelloClient::createClientSocket(
 *                   1.[IN] unsigned long _ipAddr
 *                   2.[IN] unsigned short _ipPort
 *------------------------------------------------------------------------------------------------------*/
-void HelloClient::connectServer(
+void CellClient::connectServer(
           IN unsigned long _ipAddr,
           IN unsigned short _ipPort
 )
@@ -77,51 +78,95 @@ void HelloClient::connectServer(
 * @function:SOCKET& getClientSocket
 * @retvalue: SOCKET &
 *------------------------------------------------------------------------------------------------------*/
-SOCKET& HelloClient::getClientSocket() 
+SOCKET& CellClient::getClientSocket() 
 {
           return this->m_client_socket;
 }
 
-/*------------------------------------------------------------------------------------------------------
-* @function:void sendDataToServer
-* @param :
-*                  1.[IN] SOCKET& _clientSocket,
-                    2.[IN] T*_szSendBuf
-                    3.[IN] int _szBufferSize
-*------------------------------------------------------------------------------------------------------*/
-template<typename T>
-void HelloClient::sendDataToServer(
-          IN  SOCKET& _clientSocket,
-          IN T* _szSendBuf,
-          IN int _szBufferSize)
+char*CellClient::getMsgBufferHead()
 {
-          ::send(
-                    _clientSocket,
-                    reinterpret_cast<const char*>(_szSendBuf),
-                    _szBufferSize,
-                    0
-          );
+          return this->m_szMsgBuffer.get();
 }
 
-/*------------------------------------------------------------------------------------------------------
-* @function:void reciveDataFromServer
-* @param :
-*                  1. IN  SOCKET& _clientSocket
-                    2. [OUT] T* _szRecvBuf
-                    3. [IN OUT] int _szBufferSize
-*------------------------------------------------------------------------------------------------------*/
-template<typename T> 
-int HelloClient::reciveDataFromServer(
-          IN  SOCKET& _clientSocket,
-          OUT T* _szRecvBuf,
-          IN int _szBufferSize)
+char*CellClient::getMsgBufferTail()
 {
-          return ::recv(
-                    _clientSocket,
-                    reinterpret_cast<char*>(_szRecvBuf),
-                    _szBufferSize,
-                    0
-          );
+          return this->m_szMsgBuffer.get() + this->getMsgPtrPos();
+}
+
+unsigned int CellClient::getBufRemainSpace() const
+{
+          return this->m_szRemainSpace;
+}
+
+unsigned int CellClient::getMsgPtrPos() const
+{
+          return this->m_szMsgPtrPos;
+}
+
+unsigned int CellClient::getBufFullSpace() const
+{
+          return this->m_szMsgBufSize;
+}
+
+void CellClient::increaseMsgBufferPos(unsigned int _increaseSize)
+{
+          this->m_szMsgPtrPos += _increaseSize;
+          this->m_szRemainSpace -= _increaseSize;
+}
+
+void CellClient::decreaseMsgBufferPos(unsigned int _decreaseSize)
+{
+          this->m_szMsgPtrPos -= _decreaseSize;
+          this->m_szRemainSpace += _decreaseSize;
+}
+
+void CellClient::resetMsgBufferPos()
+{
+          this->m_szMsgPtrPos = 0;
+          this->m_szRemainSpace = this->m_szMsgBufSize;
+}
+
+unsigned int CellClient::getSendPtrPos() const
+{
+          return this->m_szSendPtrPos;
+}
+
+unsigned int CellClient::getSendBufFullSpace() const
+{
+          return this->m_szSendBufSize;
+}
+
+unsigned int CellClient::getSendBufRemainSpace() const
+{
+          return this->m_szSendRemainSpace;
+}
+
+char*CellClient::getSendBufferHead()
+{
+          return this->m_szSendBuffer.get();
+}
+
+char*CellClient::getSendBufferTail()
+{
+          return this->m_szSendBuffer.get() + this->getSendPtrPos();
+}
+
+void CellClient::increaseSendBufferPos(unsigned int _increaseSize)
+{
+          this->m_szSendPtrPos += _increaseSize;
+          this->m_szSendRemainSpace -= _increaseSize;
+}
+
+void CellClient::decreaseSendBufferPos(unsigned int _decreaseSize)
+{
+          this->m_szSendPtrPos -= _decreaseSize;
+          this->m_szSendRemainSpace += _decreaseSize;
+}
+
+void CellClient::resetSendBufferPos()
+{
+          this->m_szSendPtrPos = 0;
+          this->m_szSendRemainSpace = this->m_szSendBufSize;
 }
 
 /*------------------------------------------------------------------------------------------------------
@@ -129,7 +174,7 @@ int HelloClient::reciveDataFromServer(
 * @function: void initClientIOMultiplexing
 * @description: in client, we only need to deal with client socket
 *------------------------------------------------------------------------------------------------------*/
-void HelloClient::initClientIOMultiplexing()
+void CellClient::initClientIOMultiplexing()
 {
           FD_ZERO(&m_fdread);                                                              //clean fd_read
           FD_SET(this->m_client_socket, &m_fdread);                           //Insert Server Socket into fd_read
@@ -138,7 +183,7 @@ void HelloClient::initClientIOMultiplexing()
 /*------------------------------------------------------------------------------------------------------
 * @function: bool initClientSelectModel
 *------------------------------------------------------------------------------------------------------*/
-bool HelloClient::initClientSelectModel()
+bool CellClient::initClientSelectModel()
 {
           return (::select(static_cast<int>(this->m_client_socket + 1),
                     &m_fdread,
@@ -154,7 +199,7 @@ bool HelloClient::initClientSelectModel()
                     1.[IN] SOCKET & _client
                     2.[IN OUT]  std::promise<bool> &interfacePromise
 *------------------------------------------------------------------------------------------------------*/
-void HelloClient::clientInterfaceLayer(
+void CellClient::clientInterfaceLayer(
           IN SOCKET& _client,
           IN OUT  std::promise<bool> &interfacePromise)
 {
@@ -177,8 +222,8 @@ void HelloClient::clientInterfaceLayer(
                     //else {
                     //          std::cout << "[CLIENT ERROR INFO] Invalid Command Input!" << std::endl;
                     //}
-                    _LoginData loginData("client-loopback404", "1234567abc");
-                    this->sendDataToServer(_client, &loginData, sizeof(loginData));
+                    //_LoginData loginData("client-loopback404", "1234567abc");
+                    //this->sendDataToServer(_client, &loginData, sizeof(loginData));
           }
 }
 
@@ -187,7 +232,7 @@ void HelloClient::clientInterfaceLayer(
 * @function: void readMessageHeader
 * @param: IN _PackageHeader*
 *------------------------------------------------------------------------------------------------------*/
-void HelloClient::readMessageHeader(IN _PackageHeader* _header)
+void CellClient::readMessageHeader(IN _PackageHeader* _header)
 {
           std::cout << "Receive Message From Server<Socket =" << static_cast<int>(this->m_client_socket) <<"> : "
                     << "Data Length = " << _header->_packageLength << ", Request = ";
@@ -214,7 +259,7 @@ void HelloClient::readMessageHeader(IN _PackageHeader* _header)
 * @function: virtual void readMessageHeader
 * @param : [IN] _PackageHeader* _buffer
 * ------------------------------------------------------------------------------------------------------*/
-void HelloClient::readMessageBody(IN _PackageHeader* _buffer)
+void CellClient::readMessageBody(IN _PackageHeader* _buffer)
 {
           if (_buffer->_packageCmd == CMD_LOGIN) {
                     _LoginData* recvLoginData(reinterpret_cast<_LoginData*>(_buffer));
@@ -243,7 +288,7 @@ void HelloClient::readMessageBody(IN _PackageHeader* _buffer)
 /*------------------------------------------------------------------------------------------------------
 * @function:bool dataProcessingLayer
 *------------------------------------------------------------------------------------------------------*/
-bool HelloClient::dataProcessingLayer()
+bool CellClient::dataProcessingLayer()
 {
           /*enhance client data recieving capacity*/
           int  recvStatus = this->reciveDataFromServer(      //retrieve data from kernel buffer space
@@ -311,11 +356,11 @@ bool HelloClient::dataProcessingLayer()
 * Currently, clientMainFunction only excute on the main Thread
 * @function:void clientMainFunction
 *------------------------------------------------------------------------------------------------------*/
-void HelloClient::clientMainFunction()
+void CellClient::clientMainFunction()
 {
           auto res = std::async(    //startup userinput interface multithreading shared_future requires std::async to startup
                     std::launch::async,
-                    &HelloClient::clientInterfaceLayer,
+                    &CellClient::clientInterfaceLayer,
                     this,
                     std::ref(this->m_client_socket),
                     std::ref(this->m_interfacePromise)
