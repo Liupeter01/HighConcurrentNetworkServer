@@ -1,7 +1,7 @@
 #include <DataPackage.h>
 
 _PackageHeader::_PackageHeader()
-          :_PackageHeader(0, CMD_UNKOWN)
+          :_PackageHeader(sizeof(_PackageHeader), CMD_UNKOWN)
 {
 }
 
