@@ -8,8 +8,8 @@
 
 #include<DataPackage.h>
 #include<HCNSTimeStamp.h>
+#include<HCNSTaskDispatcher.h>
 #include<HCNSINetEvent.hpp>
-#include<HCNSMsgSendTask.hpp>
 
 /*
 * inherited from HCNSObjectPool and we init 4 HCNSCellServer objects in the pool
@@ -36,7 +36,7 @@ public:
           void pushTemproaryClient(IN typename  std::vector< std::shared_ptr<ClientType>>::iterator _pclient);
           void pushMessageSendingTask(
                     IN typename std::vector< std::shared_ptr<ClientType>>::iterator _clientSocket,
-                    IN std::shared_ptr<_PackageHeader>&& _header
+                    IN _PackageHeader*&& _header
           );
 
 private:
@@ -189,26 +189,37 @@ void HCNSCellServer<ClientType>::pushTemproaryClient(IN typename  std::vector< s
 * expose an interface for producer to transfer processed data into seperated sending thread
 * @function: void pushMessageSendingTask(
             IN  typename std::vector< std::shared_ptr<ClientType>>::iterator  _clientSocket,
-            IN  std::shared_ptr<_PackageHeader>&& _header)
+            IN  _PackageHeader*&& _header)
 
 * @param: 1.[IN] typename std::vector< std::shared_ptr<ClientType>>::iterator  _clientSocket
-*         2.[IN] std::shared_ptr<_PackageHeader>&& _header
+*                  2.[IN] _PackageHeader*&& _header
 * 
 * [performance enhance]: using std::move to move a left value to the right!
+* warning: please remind of the _header ias allocated by new mannually, so this memory should be deallocated inside the lambda
 *------------------------------------------------------------------------------------------------------*/
 template<class ClientType>
 void HCNSCellServer<ClientType>::pushMessageSendingTask(
           IN typename std::vector< std::shared_ptr<ClientType>>::iterator  _clientSocket,
-          IN std::shared_ptr<_PackageHeader>&& _header)
+          IN _PackageHeader*&& _header)
 {
-          std::shared_ptr<HCNSSendTask<ClientType>> _leftSendTask{
-            new HCNSSendTask<ClientType>(
-                  (*_clientSocket), 
-                  std::forward<std::shared_ptr<_PackageHeader>>(_header)
-                  )
-          };
-          
-          this->m_sendTaskDispatcher->addTemproaryTask(std::move(_leftSendTask));
+          this->m_sendTaskDispatcher->addTemproaryTask(
+                    std::bind(
+                              [&](decltype(_clientSocket) _iterator, _PackageHeader* _pheader)
+                              {
+                                        (*_iterator)->sendDataToClient(
+                                                  _pheader,
+                                                  _pheader->_packageLength
+                                        );
+
+                                        /*delete allocated memory space*/
+                                        if (_pheader != nullptr) {
+                                                  delete  _pheader;
+                                        }
+                              },
+                              _clientSocket,
+                              _header
+                    )
+          );
 }
 
 /*------------------------------------------------------------------------------------------------------
@@ -359,8 +370,8 @@ bool HCNSCellServer<ClientType>::clientDataProcessingLayer(IN typename std::vect
                               this->m_pNetEvent->addUpPackageCounter();
 
                               //get message header to indentify commands    
-                              this->m_pNetEvent->readMessageHeader(_clientSocket, reinterpret_cast<_PackageHeader*>(_header));
-                              this->m_pNetEvent->readMessageBody(this, _clientSocket, reinterpret_cast<_PackageHeader*>(_header));
+                              //this->m_pNetEvent->readMessageHeader(_clientSocket, reinterpret_cast<_PackageHeader*>(_header));
+                              //this->m_pNetEvent->readMessageBody(this, _clientSocket, reinterpret_cast<_PackageHeader*>(_header));
                              
                               /* 
                               * delete this message package and modify the array

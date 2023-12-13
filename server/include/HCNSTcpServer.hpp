@@ -617,26 +617,19 @@ void HCNSTcpServer<ClientType>::readMessageBody(
           IN _PackageHeader* _header
 )
 {
+          _PackageHeader* reply(nullptr);
           if (_header->_packageCmd == CMD_LOGIN) {
                     _LoginData* loginData(reinterpret_cast<_LoginData*>(_header));
-                    std::shared_ptr<_LoginData> reply{
-                        new _LoginData(loginData->userName, loginData->userPassword)
-                    };
-                    reply->loginStatus = true;                                                  //set login status as true
-                    _cellServer->pushMessageSendingTask(_clientSocket, std::move(reply));
+                    reply = new _LoginData(loginData->userName, loginData->userPassword);
+                    dynamic_cast<_LoginData*>(reply)->loginStatus = true;                  //set login status as true
           }
           else if (_header->_packageCmd == CMD_LOGOUT) {
                     _LogoutData* logoutData(reinterpret_cast<_LogoutData*>(_header));
-                    std::shared_ptr<_LogoutData> reply{
-                        new _LogoutData(logoutData->userName)
-                    };
-                    reply->logoutStatus = true;                                                 //set logout status as true
-                    _cellServer->pushMessageSendingTask(_clientSocket, std::move(reply));
+                    reply = new _LogoutData(logoutData->userName);
+                    dynamic_cast<_LogoutData*>(reply)->logoutStatus = true;               //set logout status as true
           }
           else {
-                    std::shared_ptr<_PackageHeader> _error{
-                        new _PackageHeader(sizeof(_PackageHeader), CMD_ERROR)
-                    };
-                    _cellServer->pushMessageSendingTask(_clientSocket, std::move(_error));
+                    reply = new _PackageHeader(sizeof(_PackageHeader), CMD_ERROR);
           }
+          _cellServer->pushMessageSendingTask(_clientSocket, std::move(reply));
 }

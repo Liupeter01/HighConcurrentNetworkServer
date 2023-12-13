@@ -1,35 +1,16 @@
 #include<HCNSTaskDispatcher.h>
 
-HCNSCellTask::HCNSCellTask()
-{
-
-}
-
-HCNSCellTask::~HCNSCellTask()
-{
-
-}
-
-HCNSTaskDispatcher::HCNSTaskDispatcher()
-{
-}
-
-HCNSTaskDispatcher::~HCNSTaskDispatcher()
-{
-          m_taskThread.join();
-}
-
 /*------------------------------------------------------------------------------------------------------
 * producer thread add HCNSCellTask* _cellTask into the m_temproaryTaskList
 * @description: perfect forwarding a righr value reference to enhance performance!
-* @function: void addTemproaryClient(std::shared_ptr<HCNSCellTask> && _cellTask)
-* @param:[IN] std::shared_ptr<HCNSCellTask>>
+* @function: void addTemproaryClient(CellTask && _cellTask)
+* @param:[IN] CellTask && _cellTask
 *------------------------------------------------------------------------------------------------------*/
-void HCNSTaskDispatcher::addTemproaryTask(std::shared_ptr<HCNSCellTask> && _cellTask)
+void HCNSTaskDispatcher::addTemproaryTask(CellTask && _cellTask)
 {
           std::lock_guard<std::mutex> _lckg(this->m_temproaryMutex);
           m_temproaryTaskList.push_back(
-                std::forward<std::shared_ptr<HCNSCellTask>>(_cellTask)
+                std::forward<CellTask>(_cellTask)
           );
 }
 
@@ -60,9 +41,12 @@ void HCNSTaskDispatcher::taskProcessingThread()
                     }
 
                     /*deal with maintask*/
-                    for (auto ib = this->m_mainTaskList.begin(); ib != this->m_mainTaskList.end(); ib++){
-                              (*ib)->excuteTask();
-                    }
+                    std::for_each(this->m_mainTaskList.begin(), this->m_mainTaskList.end(),
+                              [](CellTask& _cellTask) {
+                                        /*call std::function<void()>*/
+                                        _cellTask();
+                              }
+                    );
                     this->m_mainTaskList.clear();
           }
 }

@@ -17,11 +17,11 @@ public:
 public:
 		  /*------------------------------------------------------------------------------------------------------
 			* virtual function: client connect to server
-			* @function:  void clientOnJoin(IN std::shared_ptr<ClientType> _pclient)
-			* @param : [IN] std::shared_ptr<ClientType> _pclient
+			* @function:  void clientOnJoin(IN typename  std::vector< std::shared_ptr<ClientType>>::iterator _pclient)
+			* @param : [IN] typename  std::vector< std::shared_ptr<ClientType>>::iterator _pclient
 			* @multithread safety issue: will only be triggered by only one thread
 			*------------------------------------------------------------------------------------------------------*/
-		  virtual inline void clientOnJoin(IN std::shared_ptr<ClientType> _pclient)= 0;
+		  virtual inline void clientOnJoin(IN typename  std::vector< std::shared_ptr<ClientType>>::iterator _pclient)= 0;
 
 		  /*------------------------------------------------------------------------------------------------------
 		  * virtual function: client terminate connection
