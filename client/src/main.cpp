@@ -1,4 +1,4 @@
-#include <CellClient.hpp>
+#include <HelloClient.h>
 
 constexpr int g_ClientNumber(1000);
 constexpr int g_ThreadNumber(4);
@@ -7,10 +7,8 @@ int main()
 {
           std::promise<bool> m_interfacePromise;
           std::shared_future<bool> m_interfaceFuture(m_interfacePromise.get_future());
-
           _LoginData loginData[10]{ _LoginData("client-loopback404", "1234567abc") };
-
-          CellClient* clientPool[g_ClientNumber];
+          HelloClient* clientPool[g_ClientNumber];
           std::thread th_send[g_ThreadNumber];
           std::thread th_stop([](std::promise<bool>& _promise) {
                     while (true)
@@ -31,10 +29,10 @@ int main()
 
           for (int i = 0; i < g_ThreadNumber; ++i)
           {
-                    th_send[i] = std::thread([&](CellClient* clientArray[g_ClientNumber], std::shared_future<bool>& _future, int id) {
+                    th_send[i] = std::thread([&](HelloClient* clientArray[g_ClientNumber], std::shared_future<bool>& _future, int id) {
                               for (int i = id * (g_ClientNumber / g_ThreadNumber); i < (id + 1) * (g_ClientNumber / g_ThreadNumber); ++i) 
                               {
-                                        clientPool[i] = new CellClient;
+                                        clientPool[i] = new HelloClient;
                                         clientPool[i]->connectServer(inet_addr("127.0.0.1"), 4567);
                               }
                               while (true)
