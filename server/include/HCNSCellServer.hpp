@@ -43,7 +43,7 @@ private:
           void purgeCloseSocket(IN typename std::vector< std::shared_ptr<ClientType>>::iterator _pclient);
           int getLargestSocketValue();
           void initServerIOMultiplexing();
-          bool initServerSelectModel();
+          int initServerSelectModel();
           bool clientDataProcessingLayer(IN typename std::vector< std::shared_ptr<ClientType>>::iterator _clientSocket);
           void clientRequestProcessingThread(IN std::shared_future<bool>& _future);
           void shutdownCellServer();
@@ -265,12 +265,15 @@ void HCNSCellServer<ClientType>::initServerIOMultiplexing()
                     this->m_largestSocket = static_cast<SOCKET>(0);
 
                     /*add all the client socket in to the fd_read*/
-                    for (auto ib = this->m_clientVec.begin(); ib != this->m_clientVec.end(); ib++) {
-                              FD_SET((*ib)->getClientSocket(), &m_fdread);
-                              if (m_largestSocket < (*ib)->getClientSocket()) {
-                                        m_largestSocket = (*ib)->getClientSocket();
-                              }
-                    }
+                    std::for_each(this->m_clientVec.begin(),this->m_clientVec.end(),
+                      [&](std::shared_ptr<ClientType> _client)
+                      {
+                          FD_SET(_client->getClientSocket(), &m_fdread);
+                          if (m_largestSocket < _client->getClientSocket()) {
+                              m_largestSocket = _client->getClientSocket();
+                          }
+                      }
+                    );
 
 #if _WIN32    
                     memcpy_s(
@@ -309,11 +312,11 @@ void HCNSCellServer<ClientType>::initServerIOMultiplexing()
 
 /*------------------------------------------------------------------------------------------------------
 * use select system call to setup model
-* @function: bool initServerSelectModel()
-* @retvalue: bool
+* @function: int initServerSelectModel()
+* @retvalue: int
 *------------------------------------------------------------------------------------------------------*/
 template<class ClientType>
-bool HCNSCellServer<ClientType>::initServerSelectModel()
+int HCNSCellServer<ClientType>::initServerSelectModel()
 {
           return ::select(
                               getLargestSocketValue(),
@@ -429,9 +432,12 @@ void HCNSCellServer<ClientType>::clientRequestProcessingThread(IN std::shared_fu
                     if (this->m_temporaryClientBuffer.size()) 
                     {
                               std::lock_guard<std::mutex> _lckg(this->m_queueMutex);
-                              for (auto ib = this->m_temporaryClientBuffer.begin(); ib != this->m_temporaryClientBuffer.end(); ++ib) {
-                                        this->m_clientVec.push_back(*ib);
-                              }
+                              std::for_each(this->m_temporaryClientBuffer.begin(),this->m_temporaryClientBuffer.end(),
+                                  [&](std::shared_ptr<ClientType> & _client)
+                                  {
+                                      this->m_clientVec.push_back(std::move(_client));
+                                  }
+                              );
                               this->m_temporaryClientBuffer.clear();
 
                               /*clients joined*/

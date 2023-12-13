@@ -242,7 +242,7 @@ void HCNSTcpServer<ClientType>::serverMainFunction(IN const unsigned int _thread
                     std::mem_fn(&HCNSTcpServer::serverInterfaceLayer), this, std::ref(this->m_interfacePromise)
           );
 
-          for (int i = 0; i < _threadNumber; ++i) {
+          for (size_t i = 0; i < _threadNumber; ++i) {
                     std::shared_ptr<HCNSCellServer<ClientType>>_leftCellServer(
                               new HCNSCellServer<ClientType>(
                                         this->m_server_socket,

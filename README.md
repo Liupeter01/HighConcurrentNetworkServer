@@ -22,7 +22,7 @@
       	1) How Many MemoryPool Blocks(per one size) will be created?
            MEMORYPOOL_BLOCK_COUNT
 
-       2) MemoryPool Blocks Size List:
+		2) MemoryPool Blocks Size List:
          		MEMORYPOOL_BLOCK_SZ8
          		MEMORYPOOL_BLOCK_SZ16
          		MEMORYPOOL_BLOCK_SZ32

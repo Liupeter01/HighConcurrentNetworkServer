@@ -4,9 +4,9 @@
 * searching in the array in order to find the mapping index
 * @function: uint32_t *findMappingIndex(const size_t _size)
 * @param : [IN]size_t _size
-* @retvalue: int
+* @retvalue: uint32_t
 *------------------------------------------------------------------------------------------------------*/
-inline int MemoryAllocator::findMappingIndex(const size_t _size)
+inline uint32_t MemoryAllocator::findMappingIndex(const size_t _size)
 {
         auto _result =  std::find_if(
                 this->_poolSizeArray,

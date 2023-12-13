@@ -42,7 +42,7 @@ private:
          template<typename Value, typename ...MemorySpaceArgs>
          void createMemoryManageObject(uint32_t blocks_count, Value t, MemorySpaceArgs ... args);
         
-         inline int findMappingIndex(const size_t _size);
+         inline uint32_t findMappingIndex(const size_t _size);
 
 public:
           template<typename ...MemorySpaceArgs>
