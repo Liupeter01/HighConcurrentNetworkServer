@@ -1,30 +1,24 @@
 #pragma once
 #ifndef _HCNSCELLTASK_H_
 #define _HCNSCELLTASK_H_
+#include<list>
 #include<thread>
 #include<mutex>
 #include<functional>
-#include<list>
-
-class HCNSCellTask 
-{
-public:
-		  HCNSCellTask();
-		  virtual ~HCNSCellTask();
-
-public:
-		  virtual void excuteTask() = 0;
-};
+#include<algorithm>
 
 class HCNSTaskDispatcher
 {
+		  typedef std::function<void()> CellTask;
 public:
-		  HCNSTaskDispatcher();
-		  virtual ~HCNSTaskDispatcher();
+		  HCNSTaskDispatcher() {}
+		  virtual ~HCNSTaskDispatcher() {
+					m_taskThread.join();
+		  }
 
 public:
 		  //void addTemproaryTask(HCNSCellTask* _cellTask);
-		  void addTemproaryTask(std::shared_ptr<HCNSCellTask> && _cellTask);
+		  void addTemproaryTask(CellTask&& _cellTask);
 		  void startCellTaskDispatch();
 
 private:
@@ -34,8 +28,8 @@ private:
 private:
 		  /*temproary and permanent storage for tasks*/
 		  std::mutex m_temproaryMutex;
-		  std::list<std::shared_ptr<HCNSCellTask>> m_temproaryTaskList;
-		  std::list<std::shared_ptr<HCNSCellTask>> m_mainTaskList;
+		  std::list<CellTask> m_temproaryTaskList;
+		  std::list<CellTask> m_mainTaskList;
 
 		  /*start a thread for task processing*/
 		  std::thread m_taskThread;

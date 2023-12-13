@@ -91,15 +91,15 @@ private:
           * additional buffer space for clientDataProcessingLayer()
           * server recive buffer(retrieve much data as possible from kernel)
           */
-          const unsigned int m_szMsgBufSize = 4096 * 10 ;                       //4MB
+          const unsigned int m_szMsgBufSize = 4096 ;                               //4096B
           unsigned long m_szMsgPtrPos = 0;                                               //message pointer location pos
-          unsigned long m_szRemainSpace = m_szMsgBufSize;                        //remain space
-          std::shared_ptr<char> m_szMsgBuffer;                                        //find available data from server recive buffer
+          unsigned long m_szRemainSpace = m_szMsgBufSize;                //remain space
+          std::shared_ptr<char> m_szMsgBuffer;                                         //find available data from server recive buffer
 
           /*
           * server send buffer(create a thread and push multipule data to each client) 
           */
-          const unsigned int m_szSendBufSize = 4096 * 10;                       //4MB
+          const unsigned int m_szSendBufSize = 4096;                                //4096B
           unsigned long m_szSendPtrPos = 0;                                               //message pointer location pos
           unsigned long m_szSendRemainSpace = m_szSendBufSize;       //remain space
           std::shared_ptr<char> m_szSendBuffer;                                        //send buffer
@@ -108,6 +108,7 @@ private:
 
 /*------------------------------------------------------------------------------------------------------
 * @function: void sendDataToClient
+* @description:all the data inside this function might not be sent immediately, all the data will be stored in the buffer space!
 * @param : 1.[IN]  T* _szSendBuf,
                     2.[IN] int _szBufferSize
 *------------------------------------------------------------------------------------------------------*/
