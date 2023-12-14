@@ -22,10 +22,11 @@ class HCNSCellServer
 public:
           HCNSCellServer();
           HCNSCellServer(
-                    IN const SOCKET& _serverSocket, 
+                    IN const SOCKET& _serverSocket,
                     IN const SOCKADDR_IN& _serverAddr,
                     IN std::shared_future<bool>& _future,
-                    IN INetEvent<ClientType>* _netEvent
+                    IN INetEvent<ClientType>* _netEvent,
+                    IN long long& _reportTimeOut
           );
 
           virtual ~HCNSCellServer();
@@ -44,11 +45,17 @@ private:
           int getLargestSocketValue();
           void initServerIOMultiplexing();
           int initServerSelectModel();
+
+          /*Client Pulse Timeout Traversal Method*/
+          void findZombieClientConnection();
           bool clientDataProcessingLayer(IN typename std::vector< std::shared_ptr<ClientType>>::iterator _clientSocket);
           void clientRequestProcessingThread(IN std::shared_future<bool>& _future);
           void shutdownCellServer();
 
 private:
+          /*Client Pulse Timeout Setting*/
+          long long _reportTimeSetting;
+
           /*When HCNSTcpServer set promise as false, all cell server should terminate*/
           std::shared_future<bool> m_interfaceFuture;
 
@@ -113,12 +120,14 @@ HCNSCellServer<ClientType>::HCNSCellServer(
           IN const SOCKET& _serverSocket,
           IN const SOCKADDR_IN& _serverAddr,
           IN std::shared_future<bool>& _future,
-          IN INetEvent<ClientType>* _netEvent)
+          IN INetEvent<ClientType>* _netEvent, 
+          IN long long& _reportTimeOut)
           : m_server_socket(_serverSocket),
           m_interfaceFuture(_future),
           m_pNetEvent(_netEvent),
           m_sendTaskDispatcher(new HCNSTaskDispatcher),
-          m_isClientArrayChanged(true)
+          m_isClientArrayChanged(true),
+          _reportTimeSetting(_reportTimeOut)
 {
 #if _WIN32    
           memcpy_s(
@@ -325,6 +334,43 @@ int HCNSCellServer<ClientType>::initServerSelectModel()
 }
 
 /*------------------------------------------------------------------------------------------------------
+* @function:  void findZombieClientConnection()
+* @description: Client Pulse Timeout Traversal Method
+*------------------------------------------------------------------------------------------------------*/
+template<class ClientType>
+void HCNSCellServer<ClientType>::findZombieClientConnection()
+{
+          for (auto ib = this->m_clientVec.begin(); ib != this->m_clientVec.end();)
+          {
+                    /*check is this client pulse timeout*/
+                    if (!(*ib)->isClientConnectionTimeout(this->_reportTimeSetting)) {
+                              /*clients leave*/
+                              this->m_isClientArrayChanged = true;
+
+                              /*notify the tcp server to delete it from the container and dealloc it's memory*/
+                              if (this->m_pNetEvent != nullptr) {
+                                        this->m_pNetEvent->clientOnLeave(ib);
+                              }
+
+                              /*modify code from just delete (*ib) to shutdown socket first and then delete*/
+                              this->purgeCloseSocket(ib);
+
+                              /* erase Current unavailable client's socket(no longer needs to dealloc it's memory)*/
+                              ib = this->m_clientVec.erase(ib);
+
+                              /*
+                                * There is a kind of sceniro when delete socket obj is completed
+                                * and there is only one client still remainning connection to the server
+                                */
+                              if (ib == this->m_clientVec.end() || this->m_clientVec.size() <= 1) {
+                                        break;
+                              }
+                    }
+                    ++ib;
+          }
+}
+
+/*------------------------------------------------------------------------------------------------------
 * @function:  dataProcessingLayer
 * @param: [IN] typename std::vector< std::shared_ptr<ClientType>>::iterator _clientSocket
 * @description: process the request from clients
@@ -370,7 +416,7 @@ bool HCNSCellServer<ClientType>::clientDataProcessingLayer(IN typename std::vect
                               this->m_pNetEvent->addUpPackageCounter();
 
                               //get message header to indentify commands    
-                              this->m_pNetEvent->readMessageHeader( (*_clientSocket), reinterpret_cast<_PackageHeader*>(_header));
+                              //this->m_pNetEvent->readMessageHeader( (*_clientSocket), reinterpret_cast<_PackageHeader*>(_header));
                               this->m_pNetEvent->readMessageBody(this, (*_clientSocket), reinterpret_cast<_PackageHeader*>(_header));
                              
                               /* 
@@ -502,6 +548,9 @@ void HCNSCellServer<ClientType>::clientRequestProcessingThread(IN std::shared_fu
                               }
                               ib++;
                     }
+
+                    /*add pulse detection timeout for each client*/
+                    this->findZombieClientConnection();
           }
 }
 

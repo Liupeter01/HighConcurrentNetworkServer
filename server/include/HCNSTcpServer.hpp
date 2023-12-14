@@ -8,8 +8,8 @@ class HCNSTcpServer :public INetEvent<ClientType>
 {
 public:
           HCNSTcpServer();
-          HCNSTcpServer(IN unsigned short _ipPort);
-          HCNSTcpServer(IN unsigned long _ipAddr, IN unsigned short _ipPort);
+          HCNSTcpServer(IN unsigned short _ipPort, IN long long _timeout);
+          HCNSTcpServer(IN unsigned long _ipAddr, IN unsigned short _ipPort, IN long long _timeout);
           virtual ~HCNSTcpServer();
 
 public:
@@ -71,6 +71,9 @@ private:
           );
 
 private:
+          /*Client Pulse Timeout Setting*/
+          long long _reportTimeSetting;
+
           /*server interface symphoare control and thread creation*/
           std::promise<bool> m_interfacePromise;
           std::shared_future<bool> m_interfaceFuture;
@@ -135,18 +138,19 @@ HCNSTcpServer<ClientType>::HCNSTcpServer()
 }
 
 template<class ClientType>
-HCNSTcpServer<ClientType>::HCNSTcpServer(IN unsigned short _ipPort)
-          :HCNSTcpServer(INADDR_ANY, _ipPort)
+HCNSTcpServer<ClientType>::HCNSTcpServer(IN unsigned short _ipPort, IN long long _timeout)
+          :HCNSTcpServer(INADDR_ANY, _ipPort, _timeout)
 {
 }
 
 template<class ClientType>
-HCNSTcpServer<ClientType>::HCNSTcpServer( IN unsigned long _ipAddr,  IN unsigned short _ipPort)
+HCNSTcpServer<ClientType>::HCNSTcpServer( IN unsigned long _ipAddr,  IN unsigned short _ipPort, IN long long _timeout)
           : m_timeStamp(std::make_shared<HCNSTimeStamp>()),
           m_interfaceFuture(this->m_interfacePromise.get_future()),
           m_packageCounter(0),
           m_recvCounter(0),
-          m_ClientsCounter(0)
+          m_ClientsCounter(0),
+          _reportTimeSetting(_timeout)
 {
 #if _WIN32                          //Windows Enviorment
           WSAStartup(MAKEWORD(2, 2), &m_wsadata);
@@ -241,7 +245,8 @@ void HCNSTcpServer<ClientType>::serverMainFunction(IN const unsigned int _thread
                                         this->m_server_socket,
                                         this->m_server_address,
                                         this->m_interfaceFuture,
-                                        this
+                                        this,
+                                        this->_reportTimeSetting
                               )
                     );
                     this->m_cellServer.push_back(std::move(_leftCellServer));
@@ -625,6 +630,10 @@ void HCNSTcpServer<ClientType>::readMessageBody(
 )
 {
           _PackageHeader* reply(nullptr);
+
+          /*reset _clientSocket pulse timer*/
+          _clientSocket->resetPulseReportedTime();
+
           if (_header->_packageCmd == CMD_LOGIN) {
                     _LoginData* loginData(reinterpret_cast<_LoginData*>(_header));
                     reply = new _LoginData(loginData->userName, loginData->userPassword);
@@ -637,7 +646,7 @@ void HCNSTcpServer<ClientType>::readMessageBody(
           }
           else if (_header->_packageCmd = CMD_PULSE_DETECTION)
           {
-
+                    reply = new _PULSE;
           }
           else {
                     reply = new _PackageHeader(sizeof(_PackageHeader), CMD_ERROR);

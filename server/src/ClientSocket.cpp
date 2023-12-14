@@ -18,6 +18,9 @@ _ClientSocket::_ClientSocket(
                     reinterpret_cast<const void*>(&_addr),
                     sizeof(sockaddr_in)
           );
+
+          /*reset timeout*/
+          this->resetPulseReportedTime();
 }
 
 _ClientSocket::~_ClientSocket()
@@ -131,4 +134,25 @@ void _ClientSocket::resetSendBufferPos()
 {
           this->m_szSendPtrPos = 0;
           this->m_szSendRemainSpace = this->m_szSendBufSize;
+}
+
+/*------------------------------------------------------------------------------------------------------
+* @function: void resetPulseReportedTime()
+* @description: update last report time to class argument by current time
+*------------------------------------------------------------------------------------------------------*/
+void _ClientSocket::resetPulseReportedTime()
+{
+          this->_lastUpdatedTime = std::chrono::high_resolution_clock::now();
+}
+
+/*------------------------------------------------------------------------------------------------------
+* @function: bool isClientConnectionTimeout(long long _timeInterval)
+* @description: check is this client connection timeout(over specific time without reply)
+* @retvalue: [IN] long long _timeInterval
+* @retvalue: bool
+*------------------------------------------------------------------------------------------------------*/
+bool _ClientSocket::isClientConnectionTimeout(IN long long _timeInterval)
+{
+          auto _time_interval = std::chrono::high_resolution_clock::now() - this->_lastUpdatedTime;
+          return (std::chrono::duration_cast<std::chrono::milliseconds>(_time_interval).count() <= _timeInterval);
 }
