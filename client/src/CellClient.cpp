@@ -2,7 +2,8 @@
 
 CellClient::CellClient()
           :m_interfaceFuture(m_interfacePromise.get_future()),
-          m_szMsgBuffer(new char[m_szMsgBufSize] {0})
+          m_szMsgBuffer(new char[m_szMsgBufSize] {0}),
+          m_szSendBuffer(new char[m_szSendBufSize]{0})
 {
 #if _WIN32                          //Windows Enviormen
           WSAStartup(MAKEWORD(2, 2), &m_wsadata);
@@ -82,46 +83,90 @@ SOCKET& CellClient::getClientSocket()
           return this->m_client_socket;
 }
 
-/*------------------------------------------------------------------------------------------------------
-* @function:void sendDataToServer
-* @param :
-*                  1.[IN] SOCKET& _clientSocket,
-                    2.[IN] T*_szSendBuf
-                    3.[IN] int _szBufferSize
-*------------------------------------------------------------------------------------------------------*/
-template<typename T>
-void CellClient::sendDataToServer(
-          IN  SOCKET& _clientSocket,
-          IN T* _szSendBuf,
-          IN int _szBufferSize)
+char* CellClient::getMsgBufferHead()
 {
-          ::send(
-                    _clientSocket,
-                    reinterpret_cast<const char*>(_szSendBuf),
-                    _szBufferSize,
-                    0
-          );
+          return this->m_szMsgBuffer.get();
 }
 
-/*------------------------------------------------------------------------------------------------------
-* @function:void reciveDataFromServer
-* @param :
-*                  1. IN  SOCKET& _clientSocket
-                    2. [OUT] T* _szRecvBuf
-                    3. [IN OUT] int _szBufferSize
-*------------------------------------------------------------------------------------------------------*/
-template<typename T> 
-int CellClient::reciveDataFromServer(
-          IN  SOCKET& _clientSocket,
-          OUT T* _szRecvBuf,
-          IN int _szBufferSize)
+char* CellClient::getMsgBufferTail()
 {
-          return ::recv(
-                    _clientSocket,
-                    reinterpret_cast<char*>(_szRecvBuf),
-                    _szBufferSize,
-                    0
-          );
+          return this->m_szMsgBuffer.get() + this->getMsgPtrPos();
+}
+
+unsigned int CellClient::getBufRemainSpace() const
+{
+          return this->m_szRemainSpace;
+}
+
+unsigned int CellClient::getMsgPtrPos() const
+{
+          return this->m_szMsgPtrPos;
+}
+
+unsigned int CellClient::getBufFullSpace() const
+{
+          return this->m_szMsgBufSize;
+}
+
+void  CellClient::increaseMsgBufferPos(unsigned int _increaseSize)
+{
+          this->m_szMsgPtrPos += _increaseSize;
+          this->m_szRemainSpace -= _increaseSize;
+}
+
+void  CellClient::decreaseMsgBufferPos(unsigned int _decreaseSize)
+{
+          this->m_szMsgPtrPos -= _decreaseSize;
+          this->m_szRemainSpace += _decreaseSize;
+}
+
+void CellClient::resetMsgBufferPos()
+{
+          this->m_szMsgPtrPos = 0;
+          this->m_szRemainSpace = this->m_szMsgBufSize;
+}
+
+unsigned int CellClient::getSendPtrPos() const
+{
+          return this->m_szSendPtrPos;
+}
+
+unsigned int CellClient::getSendBufFullSpace() const
+{
+          return this->m_szSendBufSize;
+}
+
+unsigned int CellClient::getSendBufRemainSpace() const
+{
+          return this->m_szSendRemainSpace;
+}
+
+char* CellClient::getSendBufferHead()
+{
+          return this->m_szSendBuffer.get();
+}
+
+char* CellClient::getSendBufferTail()
+{
+          return this->m_szSendBuffer.get() + this->getSendPtrPos();
+}
+
+void CellClient::increaseSendBufferPos(unsigned int _increaseSize)
+{
+          this->m_szSendPtrPos += _increaseSize;
+          this->m_szSendRemainSpace -= _increaseSize;
+}
+
+void CellClient::decreaseSendBufferPos(unsigned int _decreaseSize)
+{
+          this->m_szSendPtrPos -= _decreaseSize;
+          this->m_szSendRemainSpace += _decreaseSize;
+}
+
+void CellClient::resetSendBufferPos()
+{
+          this->m_szSendPtrPos = 0;
+          this->m_szSendRemainSpace = this->m_szSendBufSize;
 }
 
 /*------------------------------------------------------------------------------------------------------

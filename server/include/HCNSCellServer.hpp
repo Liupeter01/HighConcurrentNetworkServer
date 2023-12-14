@@ -203,13 +203,13 @@ void HCNSCellServer<ClientType>::pushMessageSendingTask(
                     std::bind(
                               [&](std::shared_ptr<ClientType> _iterator, _PackageHeader* _pheader)
                               {
-                                        _iterator->sendDataToClient(
-                                                  _pheader,
-                                                  _pheader->_packageLength
-                                        );
-
                                         /*delete allocated memory space*/
                                         if (_pheader != nullptr) {
+                                                  _iterator->sendDataToClient(
+                                                            _pheader,
+                                                            _pheader->_packageLength
+                                                  );
+
                                                   delete  _pheader;
                                         }
                               },
@@ -338,6 +338,10 @@ bool HCNSCellServer<ClientType>::clientDataProcessingLayer(IN typename std::vect
           /*add up to recv counter*/
           this->m_pNetEvent->addUpRecvCounter(_clientSocket);
 
+          _PackageHeader* _header(reinterpret_cast<_PackageHeader*>(
+                    (*_clientSocket)->getMsgBufferHead()
+          ));
+
           /* We don't need to recv and store data in HCNScellServer::m_szRecvBuffer
           *  we can recv and store data in every class clientsocket directly
           */
@@ -359,10 +363,6 @@ bool HCNSCellServer<ClientType>::clientDataProcessingLayer(IN typename std::vect
           /* judge whether the length of the data in message buffer is bigger than the sizeof(_PackageHeader) */
           while ((*_clientSocket)->getMsgPtrPos() >= sizeof(_PackageHeader))
           {
-                    _PackageHeader* _header(reinterpret_cast<_PackageHeader*>(
-                              (*_clientSocket)->getMsgBufferHead()
-                    ));
-
                     /*the size of current message in szMsgBuffer is bigger than the package length(_header->_packageLength)*/
                     if (_header->_packageLength <= (*_clientSocket)->getMsgPtrPos())
                     {             
@@ -370,7 +370,7 @@ bool HCNSCellServer<ClientType>::clientDataProcessingLayer(IN typename std::vect
                               this->m_pNetEvent->addUpPackageCounter();
 
                               //get message header to indentify commands    
-                              //this->m_pNetEvent->readMessageHeader( (*_clientSocket), reinterpret_cast<_PackageHeader*>(_header));
+                              this->m_pNetEvent->readMessageHeader( (*_clientSocket), reinterpret_cast<_PackageHeader*>(_header));
                               this->m_pNetEvent->readMessageBody(this, (*_clientSocket), reinterpret_cast<_PackageHeader*>(_header));
                              
                               /* 

@@ -26,7 +26,6 @@ int main()
                     }
            }, std::ref(m_interfacePromise));
 
-
           for (int i = 0; i < g_ThreadNumber; ++i)
           {
                     th_send[i] = std::thread([&](CellClient* clientArray[g_ClientNumber], std::shared_future<bool>& _future, int id) {

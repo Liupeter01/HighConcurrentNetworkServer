@@ -57,13 +57,35 @@ public:
 
           SOCKET& getClientSocket();
 
+          unsigned int getMsgPtrPos() const;
+          unsigned int getBufFullSpace() const;
+          unsigned int getBufRemainSpace() const;
+
+          char* getMsgBufferHead();
+          char* getMsgBufferTail();
+
+          void increaseMsgBufferPos(unsigned int _increaseSize);
+          void decreaseMsgBufferPos(unsigned int _decreaseSize);
+          void resetMsgBufferPos();
+
+          unsigned int getSendPtrPos() const;
+          unsigned int getSendBufFullSpace() const;
+          unsigned int getSendBufRemainSpace() const;
+
+          char* getSendBufferHead();
+          char* getSendBufferTail();
+
+          void increaseSendBufferPos(unsigned int _increaseSize);
+          void decreaseSendBufferPos(unsigned int _decreaseSize);
+          void resetSendBufferPos();
+
           template<typename T> void sendDataToServer(
-                    IN  SOCKET& _clientSocket,
+                    IN  SOCKET& CellClient,
                     IN T* _szSendBuf,
                     IN int _szBufferSize);
 
           template<typename T> int reciveDataFromServer(
-                    IN  SOCKET& _clientSocket,
+                    IN  SOCKET& CellClient,
                     OUT T* _szRecvBuf,
                     IN int _szBufferSize
           );
@@ -96,17 +118,67 @@ private:
           SOCKET m_client_socket;                           //client connection socket
           sockaddr_in m_server_address;
 
-           /*
-           * memory buffer
-           * additional buffer space for dataProcessingLayer()
-           */
-          const unsigned int m_szMsgBufSize = 4048 * 10;           //40MB
+          /*
+          * client recive buffer(retrieve much data as possible from kernel)
+          */
+          const unsigned int m_szMsgBufSize = 4096;                               //4096B
           unsigned long m_szMsgPtrPos = 0;                                               //message pointer location pos
-          std::shared_ptr<char> m_szMsgBuffer;                                        //find available data from server recive buffer
+          unsigned long m_szRemainSpace = m_szMsgBufSize;                //remain space
+          std::shared_ptr<char> m_szMsgBuffer;                                         //find available data from server recive buffer
+
+          /*
+          * client send buffer(create a thread and push multipule data to each client)
+          */
+          const unsigned int m_szSendBufSize = 4096;                                //4096B
+          unsigned long m_szSendPtrPos = 0;                                               //message pointer location pos
+          unsigned long m_szSendRemainSpace = m_szSendBufSize;       //remain space
+          std::shared_ptr<char> m_szSendBuffer;                                        //send buffer
 
 #if _WIN32 
           WSADATA m_wsadata;
 #endif // _WINDOWS 
 };
+
+/*------------------------------------------------------------------------------------------------------
+* @function:void sendDataToServer
+* @param :
+*                  1.[IN] SOCKET& CellClient,
+                    2.[IN] T*_szSendBuf
+                    3.[IN] int _szBufferSize
+*------------------------------------------------------------------------------------------------------*/
+template<typename T>
+void CellClient::sendDataToServer(
+          IN  SOCKET& CellClient,
+          IN T* _szSendBuf,
+          IN int _szBufferSize)
+{
+          ::send(
+                    CellClient,
+                    reinterpret_cast<const char*>(_szSendBuf),
+                    _szBufferSize,
+                    0
+          );
+}
+
+/*------------------------------------------------------------------------------------------------------
+* @function:void reciveDataFromServer
+* @param :
+*                  1. IN  SOCKET& CellClient
+                    2. [OUT] T* _szRecvBuf
+                    3. [IN OUT] int _szBufferSize
+*------------------------------------------------------------------------------------------------------*/
+template<typename T>
+int CellClient::reciveDataFromServer(
+          IN  SOCKET& CellClient,
+          OUT T* _szRecvBuf,
+          IN int _szBufferSize)
+{
+          return ::recv(
+                    CellClient,
+                    reinterpret_cast<char*>(_szRecvBuf),
+                    _szBufferSize,
+                    0
+          );
+}
 
 #endif 

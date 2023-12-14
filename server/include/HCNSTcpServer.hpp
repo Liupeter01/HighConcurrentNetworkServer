@@ -596,13 +596,13 @@ void HCNSTcpServer<ClientType>::readMessageHeader(
                     << "Data Length = " << _header->_packageLength << ", Request = ";
 
           if (_header->_packageCmd == CMD_LOGIN) {
-                    std::cout << "CMD_LOGIN, ";
+                    std::cout << "CMD_LOGIN";
           }
           else if (_header->_packageCmd == CMD_LOGOUT) {
-                    std::cout << "CMD_LOGOUT, ";
+                    std::cout << "CMD_LOGOUT";
           }
           else if (_header->_packageCmd == CMD_PULSE_DETECTION) {
-          
+                    std::cout << "CMD_PULSE_DETECTION";
           }
           else {
           }
