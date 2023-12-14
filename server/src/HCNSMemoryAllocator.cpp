@@ -159,7 +159,8 @@ void* MemoryPool::allocMem(size_t _size)
 		  * therefore create a temporary memory allocation
 		  * Add a mutex lock in order to avoid multithreading problem
 		  */
-		  if (nullptr == this->getUnAmbigousHeaderValue()) {
+		  std::lock_guard<std::mutex> _lckg(this->_mempoolLock);
+		  if (nullptr == this->_blockHeader) {
 
 					/*
 					* memorypool needs to manage all the allocated memory,therefore
@@ -179,7 +180,6 @@ void* MemoryPool::allocMem(size_t _size)
 
 		  }
 		  else {
-					std::lock_guard<std::mutex> _lckg(this->_mempoolLock);
 					pAllocMem = this->_blockHeader;										
 					this->_blockHeader = this->_blockHeader->_nextBlock;	  		//move header to the next memory block
 					++pAllocMem->_blockRefCounter;									//set this memory region reference time

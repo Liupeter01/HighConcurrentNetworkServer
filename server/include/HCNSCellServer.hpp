@@ -33,10 +33,10 @@ public:
 public:
           void startCellServer();
           size_t getClientsConnectionLoad();
-          void pushTemproaryClient(IN typename  std::vector< std::shared_ptr<ClientType>>::iterator _pclient);
+          void pushTemproaryClient(IN std::shared_ptr<ClientType> _pclient);
           void pushMessageSendingTask(
-                    IN typename std::vector< std::shared_ptr<ClientType>>::iterator _clientSocket,
-                    IN _PackageHeader*&& _header
+                    IN std::shared_ptr<ClientType> _clientSocket,
+                    IN _PackageHeader* _header
           );
 
 private:
@@ -174,39 +174,36 @@ size_t HCNSCellServer<ClientType>::getClientsConnectionLoad()
 
 /*------------------------------------------------------------------------------------------------------
 * expose an interface for consumer to insert client connection into the temproary container
-* @function: void pushTemproaryClient(IN typename  std::vector< std::shared_ptr<ClientType>>::iterator _pclient)
-* @retvalue: IN typename  std::vector< std::shared_ptr<ClientType>>::iterator _pclient
+* @function: void pushTemproaryClient(IN std::shared_ptr<ClientType> _pclient)
+* @param: [IN] std::shared_ptr<ClientType> _pclient
 * @warning!: PLEASE DO NOT USE RIGHT VALUE(std::move)!!! IT IS A COPY!!! 
 *------------------------------------------------------------------------------------------------------*/
 template<class ClientType>
-void HCNSCellServer<ClientType>::pushTemproaryClient(IN typename  std::vector< std::shared_ptr<ClientType>>::iterator _pclient)
+void HCNSCellServer<ClientType>::pushTemproaryClient(IN std::shared_ptr<ClientType> _pclient)
 {
           std::lock_guard<std::mutex> _lckg(this->m_queueMutex);
-          this->m_temporaryClientBuffer.push_back((*_pclient));
+          this->m_temporaryClientBuffer.push_back(_pclient);
 }
 
 /*------------------------------------------------------------------------------------------------------
 * expose an interface for producer to transfer processed data into seperated sending thread
-* @function: void pushMessageSendingTask(
-            IN  typename std::vector< std::shared_ptr<ClientType>>::iterator  _clientSocket,
-            IN  _PackageHeader*&& _header)
-
-* @param: 1.[IN] typename std::vector< std::shared_ptr<ClientType>>::iterator  _clientSocket
-*                  2.[IN] _PackageHeader*&& _header
+* @function: void pushMessageSendingTask
+* @param: 1.[IN] std::shared_ptr<ClientType>  _clientSocket
+*                  2.[IN] _PackageHeader* _header
 * 
 * [performance enhance]: using std::move to move a left value to the right!
 * warning: please remind of the _header ias allocated by new mannually, so this memory should be deallocated inside the lambda
 *------------------------------------------------------------------------------------------------------*/
 template<class ClientType>
 void HCNSCellServer<ClientType>::pushMessageSendingTask(
-          IN typename std::vector< std::shared_ptr<ClientType>>::iterator  _clientSocket,
-          IN _PackageHeader*&& _header)
+          IN std::shared_ptr<ClientType>  _clientSocket,
+          IN _PackageHeader* _header)
 {
           this->m_sendTaskDispatcher->addTemproaryTask(
                     std::bind(
-                              [&](decltype(_clientSocket) _iterator, _PackageHeader* _pheader)
+                              [&](std::shared_ptr<ClientType> _iterator, _PackageHeader* _pheader)
                               {
-                                        (*_iterator)->sendDataToClient(
+                                        _iterator->sendDataToClient(
                                                   _pheader,
                                                   _pheader->_packageLength
                                         );
@@ -265,14 +262,14 @@ void HCNSCellServer<ClientType>::initServerIOMultiplexing()
                     this->m_largestSocket = static_cast<SOCKET>(0);
 
                     /*add all the client socket in to the fd_read*/
-                    std::for_each(this->m_clientVec.begin(),this->m_clientVec.end(),
-                      [&](std::shared_ptr<ClientType> _client)
-                      {
-                          FD_SET(_client->getClientSocket(), &m_fdread);
-                          if (m_largestSocket < _client->getClientSocket()) {
-                              m_largestSocket = _client->getClientSocket();
-                          }
-                      }
+                    std::for_each(this->m_clientVec.begin(), this->m_clientVec.end(),
+                              [&](std::shared_ptr<ClientType> _client)
+                              {
+                                        FD_SET(_client->getClientSocket(), &m_fdread);
+                                        if (m_largestSocket < _client->getClientSocket()) {
+                                                  m_largestSocket = _client->getClientSocket();
+                                        }
+                              }
                     );
 
 #if _WIN32    
@@ -373,8 +370,8 @@ bool HCNSCellServer<ClientType>::clientDataProcessingLayer(IN typename std::vect
                               this->m_pNetEvent->addUpPackageCounter();
 
                               //get message header to indentify commands    
-                              //this->m_pNetEvent->readMessageHeader(_clientSocket, reinterpret_cast<_PackageHeader*>(_header));
-                              //this->m_pNetEvent->readMessageBody(this, _clientSocket, reinterpret_cast<_PackageHeader*>(_header));
+                              //this->m_pNetEvent->readMessageHeader( (*_clientSocket), reinterpret_cast<_PackageHeader*>(_header));
+                              this->m_pNetEvent->readMessageBody(this, (*_clientSocket), reinterpret_cast<_PackageHeader*>(_header));
                              
                               /* 
                               * delete this message package and modify the array

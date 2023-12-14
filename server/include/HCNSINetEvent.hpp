@@ -17,11 +17,11 @@ public:
 public:
 		  /*------------------------------------------------------------------------------------------------------
 			* virtual function: client connect to server
-			* @function:  void clientOnJoin(IN typename  std::vector< std::shared_ptr<ClientType>>::iterator _pclient)
-			* @param : [IN] typename  std::vector< std::shared_ptr<ClientType>>::iterator _pclient
+			* @function:  void clientOnJoin(IN std::shared_ptr<ClientType> _pclient)
+			* @param : [IN] std::shared_ptr<ClientType> _pclient
 			* @multithread safety issue: will only be triggered by only one thread
 			*------------------------------------------------------------------------------------------------------*/
-		  virtual inline void clientOnJoin(IN typename  std::vector< std::shared_ptr<ClientType>>::iterator _pclient)= 0;
+		  virtual inline void clientOnJoin(IN std::shared_ptr<ClientType> _pclient) = 0;
 
 		  /*------------------------------------------------------------------------------------------------------
 		  * virtual function: client terminate connection
@@ -62,27 +62,27 @@ public:
 
 		  /*------------------------------------------------------------------------------------------------------
 		  * @function:  void readMessageHeader
-		  * @param:  1.[IN] typename std::vector<std::shared_ptr <ClientType>>::iterator _clientSocket
+		  * @param:  1.[IN] std::shared_ptr <ClientType> _clientSocket
 							  2.[IN ] _PackageHeader* _header
 
 		  * @description: process clients' message header
 		  *------------------------------------------------------------------------------------------------------*/
 		  virtual inline void readMessageHeader(
-					IN  typename  std::vector<std::shared_ptr <ClientType>>::iterator _clientSocket,
+					IN  std::shared_ptr <ClientType> _clientSocket,
 					IN _PackageHeader* _header
 		  ) = 0;
 
 		  /*------------------------------------------------------------------------------------------------------
 			* @function:  virtual void readMessageBody
 			* @param:  	1. [IN] HCNSCellServer<ClientType>* _cellServer,
-					 	2. [IN] typename  std::vector<std::shared_ptr<ClientType>>::iterator _clientSocket,
-						3. [IN] _PackageHeader* _header
+					 		    2. [IN] std::shared_ptr <ClientType> _clientSocket
+						        3. [IN] _PackageHeader* _header
 
 			* @description:  process clients' message body
 			*------------------------------------------------------------------------------------------------------*/
 		  virtual inline void readMessageBody(
 					IN HCNSCellServer<ClientType>* _cellServer,
-					IN typename  std::vector<std::shared_ptr<ClientType>>::iterator _clientSocket,
+					IN std::shared_ptr <ClientType> _clientSocket,
 					IN _PackageHeader* _header
 		  ) = 0;
 };
