@@ -249,6 +249,9 @@ void CellClient::readMessageHeader(IN _PackageHeader* _header)
           else if (_header->_packageCmd == CMD_ERROR) {
                     std::cout << "CMD_ERROR, ";
           }
+          else if (_header->_packageCmd == CMD_PULSE_DETECTION) {
+                    
+          }
           else {
                     std::cout << "CMD_UNKOWN" << std::endl;
           }
@@ -314,8 +317,8 @@ bool CellClient::dataProcessingLayer()
                     /*the size of current message in szMsgBuffer is bigger than the package length(_header->_packageLength)*/
                     if (_header->_packageLength <= this->m_szMsgPtrPos) {
                               //get message header to indentify commands
-                              //this->readMessageHeader(reinterpret_cast<_PackageHeader*>(_header)); 
-                              //this->readMessageBody(reinterpret_cast<_PackageHeader*>(_header));
+                              this->readMessageHeader(reinterpret_cast<_PackageHeader*>(_header)); 
+                              this->readMessageBody(reinterpret_cast<_PackageHeader*>(_header));
 
                               /*
                                * delete this message package and modify the array
