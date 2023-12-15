@@ -343,13 +343,12 @@ void HCNSTcpServer<ClientType>::serverInterfaceLayer(IN OUT std::promise<bool>& 
 }
 
 /*------------------------------------------------------------------------------------------------------
-* push client's structure into a std::vector<std::shared_ptr<HCNSCellServer>>::iterator
-* the total ammount of the clients should be the lowest among other  std::vector<std::shared_ptr<HCNSCellServer>>::iterator
+* push client's structure into a std::vector both in HCNSCellServer and ClientSocket
+* the total ammount of the clients should be the highest among other  std::vector<std::shared_ptr<HCNSCellServer>>::iterator
 * @function: void :pushClientToCellServer(IN SOCKET &_clientSocket,IN sockaddr_in &_clientAddress)
 * @param: 1.[IN] SOCKET &_clientSocket
-          2.[IN] IN sockaddr_in &_clientAddress
-* 
-* @update:create a smart pointer inside the scale of the function and use std::move to transfer a left value to right value 
+                   2.[IN] IN sockaddr_in &_clientAddress
+
 *------------------------------------------------------------------------------------------------------*/
 template<class ClientType>
 void HCNSTcpServer<ClientType>::pushClientToCellServer(IN SOCKET &_clientSocket,IN sockaddr_in &_clientAddress)
@@ -463,11 +462,13 @@ void HCNSTcpServer<ClientType>::shutdownTcpServer()
           /*close all the clients' connection in this cell server*/
           this->m_cellServer.clear(); 
 
-          for (auto ib = this->th_tcpServerThreadPool.begin(); ib != this->th_tcpServerThreadPool.end(); ib++) {
-                    if (ib->joinable()) {
-                              ib->join();
+          std::for_each(this->th_tcpServerThreadPool.begin(), this->th_tcpServerThreadPool.end(),
+                    [](std::thread& th) {
+                              if (th.joinable()) {
+                                        th.join();
+                              }
                     }
-          }
+          );
 
 #if _WIN32             
           ::shutdown(this->m_server_socket, SD_BOTH);                     //disconnect I/O
