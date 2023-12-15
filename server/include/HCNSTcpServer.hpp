@@ -19,11 +19,6 @@ public:
                     IN int protocol = IPPROTO_TCP
           );
 
-          static int startListeningConnection(
-                    IN SOCKET serverSocket,
-                    IN int backlog = SOMAXCONN
-          );
-
           static bool acceptClientConnection(
                     IN SOCKET serverSocket,
                     OUT SOCKET* clientSocket,
