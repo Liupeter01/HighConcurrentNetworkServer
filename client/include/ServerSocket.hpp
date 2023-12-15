@@ -6,6 +6,7 @@
 #include<cassert>
 #include<future>
 #include<thread>
+#include<atomic>
 
 #if _WIN32                          //Windows Enviorment
 /*break the limitaion of the select model size*/
