@@ -255,7 +255,7 @@ void HCNSTcpServer<ClientType>::serverMainFunction(IN const unsigned int _thread
 
 /*------------------------------------------------------------------------------------------------------
 * shutdown and terminate network connection
-* @function: void pushTemproaryClient(IN typename  std::vector< std::shared_ptr<ClientType>>::iterator _pclient)
+* @function: void purgeCloseSocket(IN typename  std::vector< std::shared_ptr<ClientType>>::iterator _pclient)
 * @param: [IN] typename  std::vector< std::shared_ptr<ClientType>>::iterator _pclient
 * @update: add smart pointer to control memory
 *------------------------------------------------------------------------------------------------------*/

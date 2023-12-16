@@ -1,12 +1,7 @@
 #pragma once
 #ifndef _HCNSCELLSERVER_H_
 #define _HCNSCELLSERVER_H_
-#include<vector>
-#include<queue>
 #include<future>
-#include<thread>
-
-#include<DataPackage.h>
 #include<HCNSTimeStamp.h>
 #include<HCNSTaskDispatcher.h>
 #include<HCNSINetEvent.hpp>
