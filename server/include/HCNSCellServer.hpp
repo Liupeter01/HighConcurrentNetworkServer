@@ -230,7 +230,7 @@ void HCNSCellServer<ClientType>::pushMessageSendingTask(
 
 /*------------------------------------------------------------------------------------------------------
 * shutdown and terminate network connection 
-* @function: void pushTemproaryClient(IN typename std::vector< std::shared_ptr<ClientType>>::iterator)
+* @function: void purgeCloseSocket(IN typename std::vector< std::shared_ptr<ClientType>>::iterator)
 * @param: [IN] typename std::vector< std::shared_ptr<ClientType>>::iterator
 *------------------------------------------------------------------------------------------------------*/
 template<class ClientType>
@@ -371,7 +371,7 @@ void HCNSCellServer<ClientType>::findZombieClientConnection()
 }
 
 /*------------------------------------------------------------------------------------------------------
-* @function:  dataProcessingLayer
+* @function:  clientDataProcessingLayer
 * @param: [IN] typename std::vector< std::shared_ptr<ClientType>>::iterator _clientSocket
 * @description: process the request from clients
 * @retvalue : bool

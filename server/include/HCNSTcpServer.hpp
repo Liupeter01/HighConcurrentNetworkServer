@@ -518,7 +518,7 @@ void HCNSTcpServer<ClientType>::clientOnLeave(IN typename  std::vector< std::sha
 
           /*
           * in clientOnLeave function, the scale of the lock have to cover the all block of the code
-          * in this sceniro we have to use std::vector::size() function instead of using the increment of std::vector<ClientType*>::iterator
+          * in this sceniro we have to use std::vector::size() function instead of using the increment of std::vector<shared_ptr<ClientType>>::iterator
           */
           std::lock_guard<std::mutex> _lckg(this->m_clientRWLock);
           auto target = std::find_if(this->m_clientInfo.begin(), this->m_clientInfo.end(),
