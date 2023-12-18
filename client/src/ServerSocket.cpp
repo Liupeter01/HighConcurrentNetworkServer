@@ -6,7 +6,7 @@ _ServerSocket::_ServerSocket()
           memset(reinterpret_cast<void*>(&this->_serverAddr), 0, sizeof(sockaddr_in));
 }
 
-_ServerSocket::_ServerSocket(IN SOCKET& _socket, IN sockaddr_in& _addr)
+_ServerSocket::_ServerSocket(IN SOCKET _socket, IN sockaddr_in _addr)
           :_serverSocket(_socket),
           m_szMsgBuffer(new char[m_szMsgBufSize] {0}),
           m_szSendBuffer(new char[m_szSendBufSize] {0})

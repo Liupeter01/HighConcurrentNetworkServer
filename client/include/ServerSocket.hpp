@@ -42,8 +42,8 @@ class _ServerSocket
 public:
           _ServerSocket();
           _ServerSocket(
-                    IN SOCKET& _socket,
-                    IN sockaddr_in& _addr
+                    IN SOCKET _socket,
+                    IN sockaddr_in _addr
           );
 
           virtual ~_ServerSocket();

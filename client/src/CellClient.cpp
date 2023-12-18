@@ -1,172 +1,72 @@
 #include<CellClient.hpp>
 
-CellClient::CellClient()
-          :m_interfaceFuture(m_interfacePromise.get_future()),
-          m_szMsgBuffer(new char[m_szMsgBufSize] {0}),
-          m_szSendBuffer(new char[m_szSendBufSize]{0})
+CellClient::CellClient(
+          IN std::shared_future<bool>& _future, 
+          IN INetEvent* _netEvent, 
+          IN long long timeout)
+          :m_interfaceFuture(_future),
+          m_pNetEvent(_netEvent),
+          _reportTimeSetting(timeout),
+          m_isServerArrayChanged(true)
 {
-#if _WIN32                          //Windows Enviormen
-          WSAStartup(MAKEWORD(2, 2), &m_wsadata);
-#endif
-          this->m_client_socket = this->createClientSocket();
-          if (this->m_client_socket == INVALID_SOCKET) {
-                    return;
-          }
 }
 
 CellClient::~CellClient()
 {
-#if _WIN32                                                   //Windows Enviorment
-          ::shutdown(this->m_client_socket, SD_BOTH); //disconnect I/O
-          ::closesocket(this->m_client_socket);     //release socket completely!! 
-          ::WSACleanup();
-
-#else                                                                  //Unix/Linux/Macos Enviorment
-          ::shutdown(this->m_client_socket, SHUT_RDWR);//disconnect I/O and keep recv buffer
-          close(this->m_client_socket);                //release socket completely!! 
-
-#endif
+          this->shutdownCellClient();
 }
 
 /*------------------------------------------------------------------------------------------------------
-* use socket api to create a ipv4 and tcp protocol socket 
-* @function:static SOCKET createClientSocket
-* @param :
-*                   1.[IN] int af
-*                   2.[IN] int type
-*                   3.[IN] int protocol
+* start cell client and create a thread for serverMsgProcessingThread
+* @function: void startCellClient()
 *------------------------------------------------------------------------------------------------------*/
-SOCKET CellClient::createClientSocket(
-          IN int af,
-          IN int type,
-          IN int protocol)
+void CellClient::startCellClient()
 {
-          return  ::socket(af, type, protocol);                              //Create server socket
+          this->th_serverMsgProcessing = std::thread(
+                    std::mem_fn(&CellClient::serverMsgProcessingThread), this, std::ref(this->m_interfaceFuture)
+          );
+
+          /*excute std::function which is stored in this->m_ServerPoolVec */
+          this->th_serverMsgSending = std::thread(
+                    std::mem_fn(&CellClient::serverMsgSendingThread), this, std::ref(this->m_interfaceFuture)
+          );
 }
 
 /*------------------------------------------------------------------------------------------------------
-* user should input server's ip:port info to establish the connection
-* @function:void connectServer
-* @param : 
-*                   1.[IN] unsigned long _ipAddr
-*                   2.[IN] unsigned short _ipPort
+* how many server are established inside the  container(including those inside the permanent and temproary queue)
+* @function: size_t getConnectionLoad
+* @retvalue: size_t
 *------------------------------------------------------------------------------------------------------*/
-void CellClient::connectServer(
-          IN unsigned long _ipAddr,
-          IN unsigned short _ipPort
-)
+size_t CellClient::getConnectionLoad()
 {
-          this->m_server_address.sin_family = AF_INET;                                    //IPV4
-          this->m_server_address.sin_port = htons(_ipPort);                                     //Port number
-
-#if _WIN32    //Windows Enviorment
-          this->m_server_address.sin_addr.S_un.S_addr = _ipAddr;                 //IP address(Windows)   
-#else               /* Unix/Linux/Macos Enviorment*/
-          this->m_server_address.sin_addr.s_addr = _ipAddr;                            //IP address(LINUX) 
-#endif
-
-          if (::connect(this->m_client_socket,
-                    reinterpret_cast<sockaddr*>(&this->m_server_address),
-                    sizeof(SOCKADDR_IN)) == SOCKET_ERROR) 
-          {
-                    return;
-          }
+          return this->m_temporaryServerPoolBuffer.size() + this->m_ServerPoolVec.size();
 }
 
 /*------------------------------------------------------------------------------------------------------
-* return the private socket
-* @function:SOCKET& getClientSocket
-* @retvalue: SOCKET &
+* expose an interface for consumer to insert client connection into the temproary container
+* @function: void pushTemproary(IN std::shared_ptr<_ServerSocket> _pclient,IN std::function<void()>&& _dosth)
+* @param: 1.[IN] std::shared_ptr<ClientType> _pclient
+*                 2.[IN]  CellClientTask&& _dosth
+* 
+* @warning!: PLEASE DO NOT USE RIGHT VALUE(std::move)!!! IT IS A COPY!!!
 *------------------------------------------------------------------------------------------------------*/
-SOCKET& CellClient::getClientSocket() 
+void CellClient::pushTemproary(IN std::shared_ptr<_ServerSocket> _pclient, IN  CellClientTask&& _dosth)
 {
-          return this->m_client_socket;
+          std::lock_guard<std::mutex> _lckg(this->m_queueMutex);
+          this->m_temporaryServerPoolBuffer.emplace_back(
+                    _pclient,
+                    std::forward<decltype(_dosth)>(_dosth)
+          );
 }
 
-char* CellClient::getMsgBufferHead()
+/*------------------------------------------------------------------------------------------------------
+* get largest socket value
+* @function: int getLargestSocketValue()
+* @retvalue: int
+*------------------------------------------------------------------------------------------------------*/
+int CellClient::getLargestSocketValue()
 {
-          return this->m_szMsgBuffer.get();
-}
-
-char* CellClient::getMsgBufferTail()
-{
-          return this->m_szMsgBuffer.get() + this->getMsgPtrPos();
-}
-
-unsigned int CellClient::getBufRemainSpace() const
-{
-          return this->m_szRemainSpace;
-}
-
-unsigned int CellClient::getMsgPtrPos() const
-{
-          return this->m_szMsgPtrPos;
-}
-
-unsigned int CellClient::getBufFullSpace() const
-{
-          return this->m_szMsgBufSize;
-}
-
-void  CellClient::increaseMsgBufferPos(unsigned int _increaseSize)
-{
-          this->m_szMsgPtrPos += _increaseSize;
-          this->m_szRemainSpace -= _increaseSize;
-}
-
-void  CellClient::decreaseMsgBufferPos(unsigned int _decreaseSize)
-{
-          this->m_szMsgPtrPos -= _decreaseSize;
-          this->m_szRemainSpace += _decreaseSize;
-}
-
-void CellClient::resetMsgBufferPos()
-{
-          this->m_szMsgPtrPos = 0;
-          this->m_szRemainSpace = this->m_szMsgBufSize;
-}
-
-unsigned int CellClient::getSendPtrPos() const
-{
-          return this->m_szSendPtrPos;
-}
-
-unsigned int CellClient::getSendBufFullSpace() const
-{
-          return this->m_szSendBufSize;
-}
-
-unsigned int CellClient::getSendBufRemainSpace() const
-{
-          return this->m_szSendRemainSpace;
-}
-
-char* CellClient::getSendBufferHead()
-{
-          return this->m_szSendBuffer.get();
-}
-
-char* CellClient::getSendBufferTail()
-{
-          return this->m_szSendBuffer.get() + this->getSendPtrPos();
-}
-
-void CellClient::increaseSendBufferPos(unsigned int _increaseSize)
-{
-          this->m_szSendPtrPos += _increaseSize;
-          this->m_szSendRemainSpace -= _increaseSize;
-}
-
-void CellClient::decreaseSendBufferPos(unsigned int _decreaseSize)
-{
-          this->m_szSendPtrPos -= _decreaseSize;
-          this->m_szSendRemainSpace += _decreaseSize;
-}
-
-void CellClient::resetSendBufferPos()
-{
-          this->m_szSendPtrPos = 0;
-          this->m_szSendRemainSpace = this->m_szSendBufSize;
+          return static_cast<int>(this->m_largestSocket) + 1;
 }
 
 /*------------------------------------------------------------------------------------------------------
@@ -176,222 +76,321 @@ void CellClient::resetSendBufferPos()
 *------------------------------------------------------------------------------------------------------*/
 void CellClient::initClientIOMultiplexing()
 {
-          FD_ZERO(&m_fdread);                                                              //clean fd_read
-          FD_SET(this->m_client_socket, &m_fdread);                           //Insert Server Socket into fd_read
+          /*is server connection array changed*/
+          if (this->m_isServerArrayChanged) {
+                    FD_ZERO(&m_fdread);                                                              //clean fd_read
+
+                    this->m_isServerArrayChanged = false;
+                    this->m_largestSocket = static_cast<SOCKET>(0);
+
+                    /*add all the client socket in to the fd_read*/
+                    std::lock_guard<std::mutex> _lckg(this->m_queueMutex);
+                    std::for_each(this->m_ServerPoolVec.begin(), this->m_ServerPoolVec.end(),
+                              [&](std::pair<std::shared_ptr<_ServerSocket>, CellClientTask>& _server)
+                              {
+                                        if (_server.first != nullptr && _server.second != nullptr) {
+                                                  FD_SET(_server.first->getServerSocket(), &m_fdread);
+                                                  if (m_largestSocket < _server.first->getServerSocket()) {
+                                                            m_largestSocket = _server.first->getServerSocket();
+                                                  }
+                                        }
+                              }
+                    );
+#if _WIN32    
+                    memcpy_s(
+                              reinterpret_cast<void*>(&this->m_fdreadCache),
+                              sizeof(fd_set),
+                              reinterpret_cast<void*>(&this->m_fdread),
+                              sizeof(fd_set)
+                    );
+#else             
+                    memcpy(
+                              reinterpret_cast<void*>(&this->m_fdreadCache),
+                              reinterpret_cast<void*>(&this->m_fdread),
+                              sizeof(fd_set)
+                    );
+#endif
+          }
+          else
+          {
+#if _WIN32    
+                    memcpy_s(
+                              reinterpret_cast<void*>(&this->m_fdread),
+                              sizeof(fd_set),
+                              reinterpret_cast<void*>(&this->m_fdreadCache),
+                              sizeof(fd_set)
+                    );
+
+#else             
+                    memcpy(
+                              reinterpret_cast<void*>(&this->m_fdread),
+                              reinterpret_cast<void*>(&this->m_fdreadCache),
+                              sizeof(fd_set)
+                    );
+#endif
+          }
 }
 
 /*------------------------------------------------------------------------------------------------------
-* @function: bool initClientSelectModel
+* use select system call to setup model
+* @function: int initClientSelectModel()
+* @retvalue: int
 *------------------------------------------------------------------------------------------------------*/
-bool CellClient::initClientSelectModel()
+int CellClient::initClientSelectModel()
 {
-          return (::select(static_cast<int>(this->m_client_socket + 1),
+          return ::select(
+                    getLargestSocketValue(),
                     &m_fdread,
                     nullptr,
                     nullptr,
-                    &this->m_timeoutSetting) < 0);                  //Select Task Ended!
+                    &this->m_timeoutSetting
+          );
 }
 
 /*------------------------------------------------------------------------------------------------------
-*  Currently, clientMainFunction excute on a new thread
-* @function: virtual void clientInterfaceLayer
-* @param: 
-                    1.[IN] SOCKET & _client
-                    2.[IN OUT]  std::promise<bool> &interfacePromise
+* shutdown and terminate network connection
+* @function:purgeCloseSocket(IN iterator_pserver)
+* @param: [IN] iterator
 *------------------------------------------------------------------------------------------------------*/
-void CellClient::clientInterfaceLayer(
-          IN SOCKET& _client,
-          IN OUT  std::promise<bool> &interfacePromise)
+void CellClient::purgeCloseSocket(IN iterator _pserver)
 {
-          while (true) {
-                    //char _Message[256]{ 0 };
-                    //std::cin.getline(_Message, 256);
-                    //if (!strcmp(_Message, "exit")) {
-                    //          std::cout << "[CLIENT EXIT] Client Exit Manually" << std::endl;
-                    //          interfacePromise.set_value(false);                            //set symphore value to inform other thread
-                    //          return;
-                    //}
-                    //else if (!strcmp(_Message, "login")) {
-                    //          _LoginData loginData("client-loopback404", "1234567abc");
-                    //          this->sendDataToServer(_client, &loginData, sizeof(loginData));
-                    //}
-                    //else if (!strcmp(_Message, "logout")) {
-                    //          _LogoutData logoutData("client-loopback404");
-                    //          this->sendDataToServer(_client, &logoutData, sizeof(logoutData));
-                    //}
-                    //else {
-                    //          std::cout << "[CLIENT ERROR INFO] Invalid Command Input!" << std::endl;
-                    //}
-                    _LoginData loginData("client-loopback404", "1234567abc");
-                    this->sendDataToServer(_client, &loginData, sizeof(loginData));
-          }
+#if _WIN32
+          ::shutdown(_pserver->first->getServerSocket(), SD_BOTH);                        //disconnect I/O
+          ::closesocket(_pserver->first->getServerSocket());                                        //release socket completely!! 
+#else 
+          ::shutdown(_pserver->first->getServerSocket(), SHUT_RDWR);                 //disconnect I/O and keep recv buffer
+          ::close(_pserver->first->getServerSocket());                                                   //release socket completely!! 
+#endif
 }
 
 /*------------------------------------------------------------------------------------------------------
-*  get the first sizeof(_PackageHeader) bytes of data to identify server commands
-* @function: void readMessageHeader
-* @param: IN _PackageHeader*
+* @function:  serverDataProcessingLayer
+* @param: [IN] iterator  _serverSocket
+* @description: process the data transfer from server
+* @retvalue : bool
+* @update: in order to enhance the performance of the server, we are going to
+*           remove m_szRecvBuffer in cellserver and serveral memcpy functions
 *------------------------------------------------------------------------------------------------------*/
-void CellClient::readMessageHeader(IN _PackageHeader* _header)
+bool  CellClient::serverDataProcessingLayer(IN iterator _serverSocket)
 {
-          std::cout << "Receive Message From Server<Socket =" << static_cast<int>(this->m_client_socket) <<"> : "
-                    << "Data Length = " << _header->_packageLength << ", Request = ";
+          _PackageHeader* _header(reinterpret_cast<_PackageHeader*>(
+                    _serverSocket->first->getMsgBufferHead()
+                    ));
+          
+          /*clean the recv buffer*/
+          memset(_serverSocket->first->getMsgBufferHead(), 0, _serverSocket->first->getBufFullSpace());
 
-          if (_header->_packageCmd == CMD_LOGIN) {
-                    std::cout << "CMD_LOGIN, ";
-          }
-          else if (_header->_packageCmd == CMD_LOGOUT) {
-                    std::cout << "CMD_LOGOUT, ";
-          }
-          else if (_header->_packageCmd == CMD_BOARDCAST) {
-                    std::cout << "CMD_BOARDCAST, ";
-          }
-          else if (_header->_packageCmd == CMD_ERROR) {
-                    std::cout << "CMD_ERROR, ";
-          }
-          else if (_header->_packageCmd == CMD_PULSE_DETECTION) {
-                    
-          }
-          else {
-                    std::cout << "CMD_UNKOWN" << std::endl;
-          }
-}
-
-/*------------------------------------------------------------------------------------------------------
-*get the first sizeof(_PackageHeader) bytes of data to identify server commands
-* @function: virtual void readMessageHeader
-* @param : [IN] _PackageHeader* _buffer
-* ------------------------------------------------------------------------------------------------------*/
-void CellClient::readMessageBody(IN _PackageHeader* _buffer)
-{
-          if (_buffer->_packageCmd == CMD_LOGIN) {
-                    _LoginData* recvLoginData(reinterpret_cast<_LoginData*>(_buffer));
-                    if (recvLoginData->loginStatus) {
-                              std::cout << "username = " << recvLoginData->userName
-                                        << ", userpassword = " << recvLoginData->userPassword << std::endl;
-                    }
-          }
-          else if (_buffer->_packageCmd == CMD_LOGOUT) {
-                    _LogoutData* recvLogoutData(reinterpret_cast<_LogoutData*>(_buffer));
-                    if (recvLogoutData->logoutStatus) {
-                              std::cout << "username = " << recvLogoutData->userName << std::endl;
-                    }
-          }
-          else if (_buffer->_packageCmd == CMD_BOARDCAST) {
-                    _BoardCast* boardcastData(reinterpret_cast<_BoardCast*>(_buffer));
-                    std::cout << "New User Identification: <"
-                              << boardcastData->new_ip << ":"
-                              << boardcastData->new_port << ">" << std::endl;
-          }
-          else if (_buffer->_packageCmd == CMD_ERROR) {
-                    std::cout << "Package Error: " << std::endl;
-          }
-}
-
-/*------------------------------------------------------------------------------------------------------
-* @function:bool dataProcessingLayer
-*------------------------------------------------------------------------------------------------------*/
-bool CellClient::dataProcessingLayer()
-{
-          /*enhance client data recieving capacity*/
-          int  recvStatus = this->reciveDataFromServer(      //retrieve data from kernel buffer space
-                    this->m_client_socket,
-                    this->m_szMsgBuffer.get() + this->m_szMsgPtrPos,
-                    this->m_szMsgBufSize - this->m_szMsgPtrPos
+          /* recv and store data in every _serverSocket */
+          int  recvStatus = _serverSocket->first->reciveDataFromServer(           //retrieve data from kernel buffer space
+                    _serverSocket->first->getMsgBufferHead(),
+                    _serverSocket->first->getBufRemainSpace()
           );
 
           if (recvStatus <= 0) {                                             //no data recieved!
-                    std::cout << "Server's Connection Terminate<Socket =" << this->m_client_socket << ","
-                              << inet_ntoa(this->m_server_address.sin_addr) << ":"
-                              << this->m_server_address.sin_port << ">" << std::endl;
+                    std::cout << "Server's Connection Terminate<Socket =" << _serverSocket->first->getServerSocket() << ","
+                              << inet_ntoa(_serverSocket->first->getServerAddr()) << ":"
+                              << _serverSocket->first->getServerPort() << ">" << std::endl;
 
                     return false;
           }
+          else {
+                    _serverSocket->first->increaseMsgBufferPos(recvStatus);         //update the pointer position 
 
-          this->m_szMsgPtrPos += recvStatus;                                    //get to the tail of current message
+                    /* judge whether the length of the data in message buffer is bigger than the sizeof(_PackageHeader) */
+                    while (_serverSocket->first->getMsgPtrPos() >= sizeof(_PackageHeader)) {
 
-          /* judge whether the length of the data in message buffer is bigger than the sizeof(_PackageHeader) */
-          while (this->m_szMsgPtrPos >= sizeof(_PackageHeader)) {
-                    _PackageHeader* _header(reinterpret_cast<_PackageHeader*>(this->m_szMsgBuffer.get()));
+                              /*the size of current message in szMsgBuffer is bigger than the package length(_header->_packageLength)*/
+                              if (_header->_packageLength <= _serverSocket->first->getMsgPtrPos()) {
 
-                    /*the size of current message in szMsgBuffer is bigger than the package length(_header->_packageLength)*/
-                    if (_header->_packageLength <= this->m_szMsgPtrPos) {
-                              //get message header to indentify commands
-                              this->readMessageHeader(reinterpret_cast<_PackageHeader*>(_header)); 
-                              this->readMessageBody(reinterpret_cast<_PackageHeader*>(_header));
+                                        //get message header to indentify commands
+                                        //this->m_pNetEvent->readMessageHeader(_serverSocket->first, reinterpret_cast<_PackageHeader*>(_header));
+                                        //this->m_pNetEvent->readMessageBody(this, _serverSocket->first, reinterpret_cast<_PackageHeader*>(_header));
 
-                              /*
-                               * delete this message package and modify the array
-                               */
+                                        /*
+                                         * delete this message package and modify the array
+                                         */
 #if _WIN32     //Windows Enviorment
-                              memcpy_s(
-                                        this->m_szMsgBuffer.get(),                                                      //the head of message buffer array
-                                        this->m_szMsgBufSize,
-                                        this->m_szMsgBuffer.get() + _header->_packageLength,       //the next serveral potential packages position
-                                        this->m_szMsgPtrPos - _header->_packageLength                   //the size of next serveral potential package
-                              );
+                                        memcpy_s(
+                                                  _serverSocket->first->getMsgBufferHead(),                                                     //the head of message buffer array
+                                                  _serverSocket->first->getBufFullSpace(),
+                                                  _serverSocket->first->getMsgBufferHead() + _header->_packageLength,       //the next serveral potential packages position
+                                                  _serverSocket->first->getMsgPtrPos() - _header->_packageLength                  //the size of next serveral potential package
+                                        );
 
 #else               /* Unix/Linux/Macos Enviorment*/
-                              memcpy(
-                                        this->m_szMsgBuffer.get(),                                                      //the head of message buffer array
-                                        this->m_szMsgBuffer.get() + _header->_packageLength,       //the next serveral potential packages position
-                                        this->m_szMsgPtrPos - _header->_packageLength                  //the size of next serveral potential package
-                              );
+                                        memcpy(
+                                                  _serverSocket->first->getMsgBufferHead(),                                                      //the head of message buffer array
+                                                  _serverSocket->first->getMsgBufferHead() + _header->_packageLength,       //the next serveral potential packages position
+                                                  _serverSocket->first->getMsgPtrPos() - _header->_packageLength                  //the size of next serveral potential package
+                                        );
 #endif
-                              this->m_szMsgPtrPos -= _header->_packageLength;                          //recalculate the size of the rest of the array
-                    }
-                    else
-                    {
-                              /*
-                               * the size of current message in szMsgBuffer is insufficent !
-                               * even can not satisfied the basic requirment of sizeof(_PackageHeader)
-                               */
-                              break;
+                                        _serverSocket->first->decreaseMsgBufferPos(_header->_packageLength);       //update the pointer pos of message array                       //recalculate the size of the rest of the array
+                              }
+                              else
+                              {
+                                        /*
+                                         * the size of current message in szMsgBuffer is insufficent !
+                                         * even can not satisfied the basic requirment of sizeof(_PackageHeader)
+                                         */
+                                        break;
+                              }
                     }
           }
 
           /*clean the recv buffer*/
-          memset(this->m_szMsgBuffer.get(), 0, this->m_szMsgBufSize);
+          memset(_serverSocket->first->getMsgBufferHead(), 0, _serverSocket->first->getBufFullSpace());
           return true;
 }
 
 /*------------------------------------------------------------------------------------------------------
-* Currently, clientMainFunction only excute on the main Thread
-* @function:void clientMainFunction
+* processing server msg(Consumer Thread)
+* @function: void serverMsgProcessingThread(IN std::shared_future<bool>& _future)
+* @param: IN std::shared_future<bool>& _future
 *------------------------------------------------------------------------------------------------------*/
-void CellClient::clientMainFunction()
+void CellClient::serverMsgSendingThread(IN std::shared_future<bool>& _future)
 {
-          auto res = std::async(    //startup userinput interface multithreading shared_future requires std::async to startup
-                    std::launch::async,
-                    &CellClient::clientInterfaceLayer,
-                    this,
-                    std::ref(this->m_client_socket),
-                    std::ref(this->m_interfacePromise)
-          );
-          while (true){
-                    /*wait for future variable to change (if there is no signal then ignore it and do other task)*/
-                    if (this->m_interfaceFuture.wait_for(std::chrono::microseconds(1)) == std::future_status::ready) {
-                              if (!this->m_interfaceFuture.get()) {
+          while (true)
+          {
+                    if (_future.wait_for(std::chrono::microseconds(1)) == std::future_status::ready) {
+                              if (!_future.get()) {
                                         break;
                               }
+                    }
+                    
+                    /*if there is nothing in container then continue!*/
+                    if (!this->m_ServerPoolVec.size()) {
+                              std::this_thread::sleep_for(std::chrono::milliseconds(1));
+                              continue;
+                    }
+
+                    std::lock_guard<std::mutex> _lckg(this->m_queueMutex);
+                    for (auto ib = this->m_ServerPoolVec.begin(); ib != this->m_ServerPoolVec.end(); ++ib) {
+                              ib->second(ib->first, reinterpret_cast<char*>(&loginData), sizeof(loginData));
+                    }
+          }
+}
+
+/*------------------------------------------------------------------------------------------------------
+* processing server msg(Consumer Thread)
+* @function: void serverMsgProcessingThread(IN std::shared_future<bool>& _future)
+* @param: IN std::shared_future<bool>& _future
+*------------------------------------------------------------------------------------------------------*/
+void CellClient::serverMsgProcessingThread(IN std::shared_future<bool>& _future)
+{
+          while (true)
+          {
+                    if (_future.wait_for(std::chrono::microseconds(1)) == std::future_status::ready) {
+                              if (!_future.get()) {
+                                        break;
+                              }
+                    }
+
+                    /*size of temporary buffer is valid*/
+                    if (this->m_temporaryServerPoolBuffer.size())
+                    {
+                              std::lock_guard<std::mutex> _lckg(this->m_queueMutex);
+                              std::for_each(this->m_temporaryServerPoolBuffer.begin(), this->m_temporaryServerPoolBuffer.end(),
+                                        [&](std::pair<std::shared_ptr<_ServerSocket>, CellClientTask>& _server){
+                                                  this->m_ServerPoolVec.push_back(_server);
+                                        }
+                              );
+                              this->m_temporaryServerPoolBuffer.clear();
+
+                              /*new server connection established*/
+                              this->m_isServerArrayChanged = true;
+                    }
+
+                    /*
+                    * size of permanent container should be valid
+                    * suspend this thread for 1 millisecond in order to block this thread from occupying cpu cycle
+                    */
+                    if (this->m_ServerPoolVec.size() <= 0) {
+                              std::this_thread::sleep_for(std::chrono::milliseconds(1));
+                              continue;
                     }
 
                     this->initClientIOMultiplexing();
-                    if (this->initClientSelectModel()) {
+
+                    int _selectStatus = this->initClientSelectModel();
+
+                    /*select model mulfunction*/
+                    if (_selectStatus < 0) {
+                              this->shutdownCellClient();
                               break;
                     }
-
-#if _WIN32     
-                    /*CLIENT ACCELERATION PROPOSESD (Windows Enviorment only!)*/
-                    if (!this->m_fdread.fd_count) {                                         //in fd_read array, no socket has been found!!               
+                    else if (!_selectStatus) {         /*cellserver hasn't receive any data*/
+                              continue;
                     }
-#endif
 
-                    if (FD_ISSET(this->m_client_socket, &this->m_fdread)) {
-                              FD_CLR(this->m_client_socket, &this->m_fdread);
-                              if (!this->dataProcessingLayer()) {                          //Client Exit Manually
-                                        break;
+                    for (auto ib = this->m_ServerPoolVec.begin(); ib != this->m_ServerPoolVec.end();)
+                    {
+
+                              /*Detect client message input signal*/
+                              if (FD_ISSET(ib->first->getServerSocket(), &m_fdread))
+                              {
+
+                                        /*
+                                        *Entering main logic layer std::vector<_ServerSocket>::iterator as an input to the main system
+                                        * retvalue: when functionlogicLayer return a value of false it means [SERVER TERMINATE]
+                                        * then you have to remove it from the container
+                                        */
+                                        if (!this->serverDataProcessingLayer(ib))
+                                        {
+                                                  /*server connection terminate leave*/
+                                                  this->m_isServerArrayChanged= true;
+
+                                                  {
+                                                            std::lock_guard<std::mutex> _lckg(this->m_queueMutex);
+
+                                                            /*notify the connectioncontroller to delete it from the container and dealloc it's memory*/
+                                                            if (this->m_pNetEvent != nullptr) {
+                                                                      this->m_pNetEvent->serverComTerminate(ib);
+                                                            }
+
+                                                            /*modify code from just delete (*ib) to shutdown socket first and then delete*/
+                                                            this->purgeCloseSocket(ib);
+
+                                                            /* erase Current unavailable client's socket(no longer needs to dealloc it's memory)*/
+                                                            ib = this->m_ServerPoolVec.erase(ib);
+                                                  }
+
+                                                  /*
+                                                    * There is a kind of sceniro when delete socket obj is completed
+                                                    * and there is only one client still remainning connection to the server
+                                                    */
+                                                  if (ib == this->m_ServerPoolVec.end() || this->m_ServerPoolVec.size() <= 1) {
+                                                            break;
+                                                  }
+                                        }
                               }
+                              ib++;
                     }
+          }
+}
+
+/*------------------------------------------------------------------------------------------------------
+* close and erase all the connection and cleanup network setup
+* @function: void shutdownCellClient()
+*------------------------------------------------------------------------------------------------------*/
+void  CellClient::shutdownCellClient()
+{
+          /*-------------------------------------------------------------------------
+          * close all the  connection in this cell client
+          *-------------------------------------------------------------------------*/
+          for (auto ib = this->m_ServerPoolVec.begin(); ib != this->m_ServerPoolVec.end(); ib++)
+          {
+                    if (this->m_pNetEvent != nullptr) {
+                              this->m_pNetEvent->serverComTerminate(ib);
+                    }
+                    this->purgeCloseSocket(ib);
+          }
+          this->m_ServerPoolVec.clear();                                            //clean the std::vector container
+
+          /*processing all the thread*/
+          if (this->th_serverMsgProcessing.joinable()) {
+                    this->th_serverMsgProcessing.join();
+          }
+          if (this->th_serverMsgSending.joinable()) {
+                    this->th_serverMsgSending.join();
           }
 }
