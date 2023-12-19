@@ -3,8 +3,6 @@
 constexpr int g_ClientNumber(1000);
 constexpr int g_ThreadNumber(4);
 
-
-
 int main()
 {
           std::promise<bool> m_interfacePromise;
@@ -39,7 +37,7 @@ int main()
                                         clientPool[i] = std::make_shared<CellClient>();
                                         clientPool[i]->connectToServer(inet_addr("127.0.0.1"), 4567);
                                         clientPool[i]->addExcuteMethod(
-                                                  [](std::shared_ptr<_ServerSocket> _serverSocket, char* _szSendBuf, int _szBufferSize)->void {
+                                                  [](const std::shared_ptr<_ServerSocket> &_serverSocket, char* _szSendBuf, int _szBufferSize)->void {
                                                             _serverSocket->sendDataToServer(_szSendBuf, _szBufferSize);
                                                   }
                                         );

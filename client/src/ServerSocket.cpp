@@ -1,12 +1,12 @@
 #include<ServerSocket.hpp>
 
 _ServerSocket::_ServerSocket()
-          :_serverSocket(INVALID_SOCKET)
+          :_ServerSocket(INVALID_SOCKET, sockaddr_in{})
 {
           memset(reinterpret_cast<void*>(&this->_serverAddr), 0, sizeof(sockaddr_in));
 }
 
-_ServerSocket::_ServerSocket(IN SOCKET& _socket, IN sockaddr_in& _addr)
+_ServerSocket::_ServerSocket(IN SOCKET&& _socket, IN sockaddr_in&& _addr)
           :_serverSocket(_socket),
           m_szMsgBuffer(new char[m_szMsgBufSize] {0}),
           m_szSendBuffer(new char[m_szSendBufSize] {0})
@@ -23,8 +23,11 @@ _ServerSocket::_ServerSocket(IN SOCKET& _socket, IN sockaddr_in& _addr)
 
 _ServerSocket:: ~_ServerSocket()
 {
-          this->_serverSocket = INVALID_SOCKET;
+          /*set memory value*/
           memset(reinterpret_cast<void*>(&this->_serverAddr), 0, sizeof(sockaddr_in));
+
+          /*set socket to INVALID_SOCKET*/
+          this->_serverSocket = INVALID_SOCKET;
 }
 
 SOCKET& _ServerSocket::getServerSocket()
@@ -48,7 +51,7 @@ char* _ServerSocket::getMsgBufferHead()
 
 char* _ServerSocket::getMsgBufferTail()
 {
-          return this->m_szMsgBuffer.get() + this->getMsgPtrPos();
+          return this->getMsgBufferHead() + this->getMsgPtrPos();
 }
 
 unsigned int _ServerSocket::getBufRemainSpace() const
@@ -106,7 +109,7 @@ char* _ServerSocket::getSendBufferHead()
 
 char* _ServerSocket::getSendBufferTail()
 {
-          return this->m_szSendBuffer.get() + this->getSendPtrPos();
+          return this->getSendBufferHead() + this->getSendPtrPos();
 }
 
 void _ServerSocket::increaseSendBufferPos(unsigned int _increaseSize)
