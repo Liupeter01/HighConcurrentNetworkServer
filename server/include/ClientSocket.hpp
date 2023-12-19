@@ -47,10 +47,12 @@ public:
           virtual ~_ClientSocket();
 
 public:
+          /*Get Client Socket and Address Info*/
           SOCKET& getClientSocket();
           const in_addr& getClientAddr()const;
           const unsigned short& getClientPort()const;
 
+          /*Operate Current Client's Send and Recv Buffer*/
           unsigned int getMsgPtrPos() const;
           unsigned int getBufFullSpace() const;
           unsigned int getBufRemainSpace() const;
@@ -73,6 +75,11 @@ public:
           void decreaseSendBufferPos(unsigned int _decreaseSize);
           void resetSendBufferPos();
 
+          /*pulse detection timeout Method*/
+          void resetPulseReportedTime();
+          bool isClientConnectionTimeout(IN long long _timeInterval);
+
+          /*Client's Send And Receive Method*/
           template<typename T> void sendDataToClient(
                     IN T* _szSendBuf,
                     IN int _szBufferSize
@@ -84,6 +91,7 @@ public:
           );
 
 private:
+          /*Client Socket and Address Info*/
           SOCKET m_clientSocket;
           sockaddr_in m_clientAddr;
 
@@ -103,6 +111,9 @@ private:
           unsigned long m_szSendPtrPos = 0;                                               //message pointer location pos
           unsigned long m_szSendRemainSpace = m_szSendBufSize;       //remain space
           std::shared_ptr<char> m_szSendBuffer;                                        //send buffer
+
+          /*add pulse detection timeout for each client*/
+          std::chrono::time_point<std::chrono::high_resolution_clock> _lastUpdatedTime;   //last report time
 };
 #endif
 

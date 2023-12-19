@@ -3,13 +3,18 @@
 constexpr int g_ClientNumber(1000);
 constexpr int g_ThreadNumber(4);
 
+
+
 int main()
 {
           std::promise<bool> m_interfacePromise;
           std::shared_future<bool> m_interfaceFuture(m_interfacePromise.get_future());
+
           _LoginData loginData{ _LoginData("client-loopback404", "1234567abc") };
-          CellClient* clientPool[g_ClientNumber];
+
+          std::shared_ptr<CellClient> clientPool[g_ClientNumber];
           std::thread th_send[g_ThreadNumber];
+          
           std::thread th_stop([](std::promise<bool>& _promise) {
                     while (true)
                     {
@@ -28,11 +33,16 @@ int main()
 
           for (int i = 0; i < g_ThreadNumber; ++i)
           {
-                    th_send[i] = std::thread([&](CellClient* clientArray[g_ClientNumber], std::shared_future<bool>& _future, int id) {
+                    th_send[i] = std::thread([&](std::shared_ptr<CellClient> clientPool[g_ClientNumber], std::shared_future<bool>& _future, int id) {
                               for (int i = id * (g_ClientNumber / g_ThreadNumber); i < (id + 1) * (g_ClientNumber / g_ThreadNumber); ++i) 
                               {
-                                        clientPool[i] = new CellClient;
-                                        clientPool[i]->connectServer(inet_addr("127.0.0.1"), 4567);
+                                        clientPool[i] = std::make_shared<CellClient>();
+                                        clientPool[i]->connectToServer(inet_addr("127.0.0.1"), 4567);
+                                        clientPool[i]->addExcuteMethod(
+                                                  [&](std::shared_ptr<_ServerSocket> _serverSocket, char* _szSendBuf, int _szBufferSize)->void {
+                                                            _serverSocket->sendDataToServer(_szSendBuf, _szBufferSize);
+                                                  }
+                                        );
                               }
                               while (true)
                               {
@@ -42,7 +52,7 @@ int main()
                                                   }
                                         }
                                         for (int i = id * (g_ClientNumber / g_ThreadNumber); i < (id + 1) * (g_ClientNumber / g_ThreadNumber); ++i) {
-                                                  clientPool[i]->sendDataToServer(clientPool[i]->getClientSocket(), &loginData, sizeof(loginData));
+                                                  clientPool[i]->startExcuteMethod(reinterpret_cast<char*>(&loginData), sizeof(loginData));
                                         }
                               }
 
@@ -51,9 +61,6 @@ int main()
           th_stop.join();
           for (int i = 0; i < g_ThreadNumber; ++i) {
                     th_send[i].join();
-          }
-          for (int i = 0; i < g_ClientNumber; ++i) {
-                    delete clientPool[i];
           }
           return 0;
 }

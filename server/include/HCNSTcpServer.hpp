@@ -8,8 +8,8 @@ class HCNSTcpServer :public INetEvent<ClientType>
 {
 public:
           HCNSTcpServer();
-          HCNSTcpServer(IN unsigned short _ipPort);
-          HCNSTcpServer(IN unsigned long _ipAddr, IN unsigned short _ipPort);
+          HCNSTcpServer(IN unsigned short _ipPort, IN long long _timeout);
+          HCNSTcpServer(IN unsigned long _ipAddr, IN unsigned short _ipPort, IN long long _timeout);
           virtual ~HCNSTcpServer();
 
 public:
@@ -17,11 +17,6 @@ public:
                     IN int af = AF_INET,
                     IN int type = SOCK_STREAM,
                     IN int protocol = IPPROTO_TCP
-          );
-
-          static int startListeningConnection(
-                    IN SOCKET serverSocket,
-                    IN int backlog = SOMAXCONN
           );
 
           static bool acceptClientConnection(
@@ -71,6 +66,9 @@ private:
           );
 
 private:
+          /*Client Pulse Timeout Setting*/
+          long long _reportTimeSetting;
+
           /*server interface symphoare control and thread creation*/
           std::promise<bool> m_interfacePromise;
           std::shared_future<bool> m_interfaceFuture;
@@ -135,18 +133,19 @@ HCNSTcpServer<ClientType>::HCNSTcpServer()
 }
 
 template<class ClientType>
-HCNSTcpServer<ClientType>::HCNSTcpServer(IN unsigned short _ipPort)
-          :HCNSTcpServer(INADDR_ANY, _ipPort)
+HCNSTcpServer<ClientType>::HCNSTcpServer(IN unsigned short _ipPort, IN long long _timeout)
+          :HCNSTcpServer(INADDR_ANY, _ipPort, _timeout)
 {
 }
 
 template<class ClientType>
-HCNSTcpServer<ClientType>::HCNSTcpServer( IN unsigned long _ipAddr,  IN unsigned short _ipPort)
+HCNSTcpServer<ClientType>::HCNSTcpServer( IN unsigned long _ipAddr,  IN unsigned short _ipPort, IN long long _timeout)
           : m_timeStamp(std::make_shared<HCNSTimeStamp>()),
           m_interfaceFuture(this->m_interfacePromise.get_future()),
           m_packageCounter(0),
           m_recvCounter(0),
-          m_ClientsCounter(0)
+          m_ClientsCounter(0),
+          _reportTimeSetting(_timeout)
 {
 #if _WIN32                          //Windows Enviorment
           WSAStartup(MAKEWORD(2, 2), &m_wsadata);
@@ -241,7 +240,8 @@ void HCNSTcpServer<ClientType>::serverMainFunction(IN const unsigned int _thread
                                         this->m_server_socket,
                                         this->m_server_address,
                                         this->m_interfaceFuture,
-                                        this
+                                        this,
+                                        this->_reportTimeSetting
                               )
                     );
                     this->m_cellServer.push_back(std::move(_leftCellServer));
@@ -255,7 +255,7 @@ void HCNSTcpServer<ClientType>::serverMainFunction(IN const unsigned int _thread
 
 /*------------------------------------------------------------------------------------------------------
 * shutdown and terminate network connection
-* @function: void pushTemproaryClient(IN typename  std::vector< std::shared_ptr<ClientType>>::iterator _pclient)
+* @function: void purgeCloseSocket(IN typename  std::vector< std::shared_ptr<ClientType>>::iterator _pclient)
 * @param: [IN] typename  std::vector< std::shared_ptr<ClientType>>::iterator _pclient
 * @update: add smart pointer to control memory
 *------------------------------------------------------------------------------------------------------*/
@@ -343,13 +343,12 @@ void HCNSTcpServer<ClientType>::serverInterfaceLayer(IN OUT std::promise<bool>& 
 }
 
 /*------------------------------------------------------------------------------------------------------
-* push client's structure into a std::vector<std::shared_ptr<HCNSCellServer>>::iterator
-* the total ammount of the clients should be the lowest among other  std::vector<std::shared_ptr<HCNSCellServer>>::iterator
+* push client's structure into a std::vector both in HCNSCellServer and ClientSocket
+* the total ammount of the clients should be the highest among other  std::vector<std::shared_ptr<HCNSCellServer>>::iterator
 * @function: void :pushClientToCellServer(IN SOCKET &_clientSocket,IN sockaddr_in &_clientAddress)
 * @param: 1.[IN] SOCKET &_clientSocket
-          2.[IN] IN sockaddr_in &_clientAddress
-* 
-* @update:create a smart pointer inside the scale of the function and use std::move to transfer a left value to right value 
+                   2.[IN] IN sockaddr_in &_clientAddress
+
 *------------------------------------------------------------------------------------------------------*/
 template<class ClientType>
 void HCNSTcpServer<ClientType>::pushClientToCellServer(IN SOCKET &_clientSocket,IN sockaddr_in &_clientAddress)
@@ -463,11 +462,13 @@ void HCNSTcpServer<ClientType>::shutdownTcpServer()
           /*close all the clients' connection in this cell server*/
           this->m_cellServer.clear(); 
 
-          for (auto ib = this->th_tcpServerThreadPool.begin(); ib != this->th_tcpServerThreadPool.end(); ib++) {
-                    if (ib->joinable()) {
-                              ib->join();
+          std::for_each(this->th_tcpServerThreadPool.begin(), this->th_tcpServerThreadPool.end(),
+                    [](std::thread& th) {
+                              if (th.joinable()) {
+                                        th.join();
+                              }
                     }
-          }
+          );
 
 #if _WIN32             
           ::shutdown(this->m_server_socket, SD_BOTH);                     //disconnect I/O
@@ -517,7 +518,7 @@ void HCNSTcpServer<ClientType>::clientOnLeave(IN typename  std::vector< std::sha
 
           /*
           * in clientOnLeave function, the scale of the lock have to cover the all block of the code
-          * in this sceniro we have to use std::vector::size() function instead of using the increment of std::vector<ClientType*>::iterator
+          * in this sceniro we have to use std::vector::size() function instead of using the increment of std::vector<shared_ptr<ClientType>>::iterator
           */
           std::lock_guard<std::mutex> _lckg(this->m_clientRWLock);
           auto target = std::find_if(this->m_clientInfo.begin(), this->m_clientInfo.end(),
@@ -625,6 +626,10 @@ void HCNSTcpServer<ClientType>::readMessageBody(
 )
 {
           _PackageHeader* reply(nullptr);
+
+          /*reset _clientSocket pulse timer*/
+          _clientSocket->resetPulseReportedTime();
+
           if (_header->_packageCmd == CMD_LOGIN) {
                     _LoginData* loginData(reinterpret_cast<_LoginData*>(_header));
                     reply = new _LoginData(loginData->userName, loginData->userPassword);
@@ -637,7 +642,7 @@ void HCNSTcpServer<ClientType>::readMessageBody(
           }
           else if (_header->_packageCmd = CMD_PULSE_DETECTION)
           {
-
+                    reply = new _PULSE;
           }
           else {
                     reply = new _PackageHeader(sizeof(_PackageHeader), CMD_ERROR);
