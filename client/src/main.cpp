@@ -39,7 +39,7 @@ int main()
                                         clientPool[i] = std::make_shared<CellClient>();
                                         clientPool[i]->connectToServer(inet_addr("127.0.0.1"), 4567);
                                         clientPool[i]->addExcuteMethod(
-                                                  [&](std::shared_ptr<_ServerSocket> _serverSocket, char* _szSendBuf, int _szBufferSize)->void {
+                                                  [](std::shared_ptr<_ServerSocket> _serverSocket, char* _szSendBuf, int _szBufferSize)->void {
                                                             _serverSocket->sendDataToServer(_szSendBuf, _szBufferSize);
                                                   }
                                         );

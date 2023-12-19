@@ -21,7 +21,7 @@ public:
 public:
           void connectToServer(IN unsigned long _ipAddr, IN unsigned short _ipPort);
           void addExcuteMethod(IN CellClientTask&& _cellClientTask =
-                    [&](std::shared_ptr<_ServerSocket> _serverSocket, char* _szSendBuf, int _szBufferSize)->void {
+                    [](std::shared_ptr<_ServerSocket> _serverSocket, char* _szSendBuf, int _szBufferSize)->void {
                               _serverSocket->sendDataToServer(_szSendBuf, _szBufferSize);
                     }
           );
