@@ -1,6 +1,6 @@
 #include<CellClient.hpp>
 
-constexpr int g_ClientNumber(1000);
+constexpr int g_ClientNumber(10000);
 constexpr int g_ThreadNumber(4);
 
 int main()
@@ -34,7 +34,7 @@ int main()
                     th_send[i] = std::thread([&](std::shared_ptr<CellClient> clientPool[g_ClientNumber], std::shared_future<bool>& _future, int id) {
                               for (int i = id * (g_ClientNumber / g_ThreadNumber); i < (id + 1) * (g_ClientNumber / g_ThreadNumber); ++i) 
                               {
-                                        clientPool[i] = std::make_shared<CellClient>();
+                                        clientPool[i] = std::make_shared<CellClient>(3000);
                                         clientPool[i]->connectToServer(inet_addr("127.0.0.1"), 4567);
                                         clientPool[i]->addExcuteMethod(
                                                   [](const std::shared_ptr<_ServerSocket> &_serverSocket, char* _szSendBuf, int _szBufferSize)->void {

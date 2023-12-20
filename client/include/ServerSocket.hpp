@@ -40,10 +40,12 @@ typedef sockaddr_in SOCKADDR_IN;
 struct _ServerSocket
 {
 public:
-          _ServerSocket();
+          _ServerSocket() = default;
+          _ServerSocket(IN long long _timeout);
           _ServerSocket(
                     IN SOCKET&& _socket,
-                    IN sockaddr_in&& _addr
+                    IN sockaddr_in&& _addr,
+                    IN long long _timeout
           );
 
           virtual ~_ServerSocket();
@@ -81,6 +83,8 @@ public:
           void resetPulseReportedTime();
           bool isServerPulseTimeout(IN long long _timeInterval);
 
+          void flushSendBufferToServer();
+
           template<typename T>
           void sendDataToServer(IN T* _szSendBuf, IN int _szBufferSize);
 
@@ -92,6 +96,7 @@ public:
           sockaddr_in _serverAddr;
 
 private:
+          long long _pulseTimeout;
 
           /*
           * client recive buffer(retrieve much data as possible from kernel)
@@ -117,93 +122,71 @@ private:
 * @function:void sendDataToServer
 * @param : 1.[IN] T*_szSendBuf
                     2.[IN] int _szBufferSize
+*
+* @update: add pulse timeout count down feature
 *------------------------------------------------------------------------------------------------------*/
 template<typename T>
 void _ServerSocket::sendDataToServer(IN T* _szSendBuf, IN int _szBufferSize)
 {
-          //::send(
-          //          this->_serverSocket,
-          //          reinterpret_cast<const char*>(_szSendBuf),
-          //          _szBufferSize,
-          //          0
-          //);
-
-          int retvalue(SOCKET_ERROR);
-
-          /*
-          * scenario:
-          *     1.this->getSendBufFullSpace() - this->getSendPtrPos() <= _szBufferSize
-          *           there is no space in buffer _szSendBuf, so we should send them first and clean the buffer
-          *           second, we have to store the rest of the buffer
-          *
-          *     2.this->getSendBufFullSpace() - this->getSendPtrPos() > _szBufferSize
-          */
-          while (true)
+          /*check wheather pulse is timeout*/
+          if (this->isServerPulseTimeout(this->_pulseTimeout)) 
           {
-                    /* there is no space in buffer _szSendBuf, we have to send it to the client*/
-                    if (this->getSendPtrPos() + _szBufferSize >= this->getSendBufFullSpace()) {
+                    this->flushSendBufferToServer();
+          }
 
-                              /* calculate valid memcpy data length */
-                              int _validCopyLength = this->getSendBufFullSpace() - this->getSendPtrPos();
+          /*Backup argument*/
+          T* _szSendBackup(_szSendBuf);
 
-                              /*append _szSendBuf to the tail of the send buffer and it has to follow the constraint of _validCopyLength*/
-#if _WIN32    
-                              memcpy_s(
-                                        reinterpret_cast<void*>(this->getSendBufferTail()),
-                                        _validCopyLength,
-                                        reinterpret_cast<void*>(_szSendBuf),
-                                        _validCopyLength
-                              );
-#else        
-                              memcpy(
-                                        reinterpret_cast<void*>(this->getSendBufferTail()),
-                                        reinterpret_cast<void*>(_szSendBuf),
-                                        _validCopyLength
-                              );
-#endif
+          /*find out wheather _szBufferSize is bigger than 4096, and how many loops it will take.*/
+          int _loop((_szBufferSize / this->getSendBufFullSpace()) + 1);
 
-                              /*send all the data to client*/
-                              retvalue = ::send(
+          for (int i = 0; i < _loop; ++i) {
+                    int _blockSize = ((_szBufferSize - (i * this->getSendBufFullSpace())) / this->getSendBufFullSpace()) != 0 ?
+                              this->getSendBufFullSpace()
+                              : _szBufferSize % this->getSendBufFullSpace();
+
+                    /*send buffer doesn't have enough space to send this data in _szSendBuf*/
+                    if (this->getSendPtrPos() + _blockSize > this->getSendBufFullSpace()) {
+
+                              /*we should send exsiting data now, and then we could deal with _szSendBuffer*/
+                              int retvalue = send(
                                         this->_serverSocket,
                                         reinterpret_cast<const char*>(this->getSendBufferHead()),
-                                        this->getSendBufFullSpace(),
+                                        this->getSendPtrPos(),
                                         0
                               );
+
+                              /*reset send buffer counter*/
+                              this->resetSendBufferPos();
+
+                              /*reset pulse timeout*/
+                              this->resetPulseReportedTime();
 
                               if (retvalue == SOCKET_ERROR) {
                                         return;
                               }
-
-                              /*
-                              * move the offset of sendbuffer pointer
-                              * recalculate the rest size of the sendbuffer
-                              */
-                              _szSendBuf = reinterpret_cast<T*>(reinterpret_cast<char*>(_szSendBuf) + _validCopyLength);
-                              _szBufferSize = _szBufferSize - _validCopyLength;
-
-                              /*reset send buffer counter*/
-                              this->resetSendBufferPos();
                     }
-                    else
-                    {
-                              /* we have enough room in the buffer, so append _szSendBuf to the tail of the send buffer */
+
+                    /*send buffer doesn't have enough space to send this data in _szSendBackup*/
 #if _WIN32    
-                              memcpy_s(
-                                        reinterpret_cast<void*>(this->getSendBufferTail()),
-                                        this->getSendBufRemainSpace(),
-                                        reinterpret_cast<void*>(_szSendBuf),
-                                        _szBufferSize
-                              );
+                    memcpy_s(
+                              reinterpret_cast<void*>(this->getSendBufferTail()),
+                              this->getSendBufRemainSpace(),
+                              reinterpret_cast<void*>(_szSendBackup),
+                              _blockSize
+                    );
 #else        
-                              memcpy(
-                                        reinterpret_cast<void*>(this->getSendBufferTail()),
-                                        reinterpret_cast<void*>(_szSendBuf),
-                                        _szBufferSize
-                              );
+                    memcpy(
+                              reinterpret_cast<void*>(this->getSendBufferTail()),
+                              reinterpret_cast<void*>(_szSendBackup),
+                              _blockSize
+                    );
 #endif
-                              this->increaseSendBufferPos(_szBufferSize);
-                              break;
-                    }
+                    _szSendBackup = reinterpret_cast<T*>(
+                              reinterpret_cast<char*>(_szSendBackup) + _blockSize
+                              );
+
+                    this->increaseSendBufferPos(_blockSize);
           }
 }
 

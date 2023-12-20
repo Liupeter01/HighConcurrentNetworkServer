@@ -1,13 +1,14 @@
 #include<ServerSocket.hpp>
 
-_ServerSocket::_ServerSocket()
-          :_ServerSocket(INVALID_SOCKET, sockaddr_in{})
+_ServerSocket::_ServerSocket(IN long long _timeout)
+          :_ServerSocket(INVALID_SOCKET, sockaddr_in{}, _timeout)
 {
           memset(reinterpret_cast<void*>(&this->_serverAddr), 0, sizeof(sockaddr_in));
 }
 
-_ServerSocket::_ServerSocket(IN SOCKET&& _socket, IN sockaddr_in&& _addr)
+_ServerSocket::_ServerSocket(IN SOCKET&& _socket, IN sockaddr_in&& _addr, IN long long _timeout)
           :_serverSocket(_socket),
+          _pulseTimeout(_timeout),
           m_szMsgBuffer(new char[m_szMsgBufSize] {0}),
           m_szSendBuffer(new char[m_szSendBufSize] {0})
 {
@@ -142,11 +143,34 @@ void _ServerSocket::resetPulseReportedTime()
 /*------------------------------------------------------------------------------------------------------
 * @function: bool isServerPulseTimeout(IN long long _timeInterval)
 * @description: check is server going to terminate connection
-* @retvalue: [IN] long long _timeInterval
+* @param: [IN] long long _timeInterval
 * @retvalue: bool
 *------------------------------------------------------------------------------------------------------*/
 bool _ServerSocket::isServerPulseTimeout(IN long long _timeInterval)
 {
           auto _time_interval = std::chrono::high_resolution_clock::now() - this->_lastUpdatedTime;
           return (std::chrono::duration_cast<std::chrono::milliseconds>(_time_interval).count() <= _timeInterval);
+}
+
+/*------------------------------------------------------------------------------------------------------
+* @function: void flushSendBufferToServer()
+* @description: flush send buffer to server in order to maintain connection
+*------------------------------------------------------------------------------------------------------*/
+void _ServerSocket::flushSendBufferToServer()
+{
+          /*send data now and check is there any data in the buffer*/
+          if (this->getSendPtrPos() > 0 && SOCKET_ERROR != this->getServerSocket()) {
+                    send(
+                              this->getServerSocket(),
+                              reinterpret_cast<const char*>(this->getSendBufferHead()),
+                              this->getSendPtrPos(),
+                              0
+                    );
+
+                    /*reset send buffer pos*/
+                    this->resetSendBufferPos();
+
+                    /*reset count down timer*/
+                    this->resetPulseReportedTime();
+          }
 }

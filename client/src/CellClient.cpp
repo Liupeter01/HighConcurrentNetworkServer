@@ -1,8 +1,9 @@
 #include<CellClient.hpp>
 
-CellClient::CellClient()
+CellClient::CellClient(long long _timeout) 
           :m_interfaceFuture(m_interfacePromise.get_future()),
-          _serverSocket(std::make_shared<_ServerSocket>())
+          _flushSendBufferTimeout(_timeout),
+          _serverSocket(std::make_shared<_ServerSocket>(_flushSendBufferTimeout))
 {
 #if _WIN32                          //Windows Enviormen
           WSAStartup(MAKEWORD(2, 2), &m_wsadata);

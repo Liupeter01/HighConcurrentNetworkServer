@@ -379,10 +379,6 @@ bool HCNSCellServer<ClientType>::clientDataProcessingLayer(IN typename std::vect
           /*add up to recv counter*/
           this->m_pNetEvent->addUpRecvCounter(_clientSocket);
 
-          _PackageHeader* _header(reinterpret_cast<_PackageHeader*>(
-                    (*_clientSocket)->getMsgBufferHead()
-          ));
-
           /* We don't need to recv and store data in HCNScellServer::m_szRecvBuffer
           *  we can recv and store data in every class clientsocket directly
           */
@@ -404,6 +400,14 @@ bool HCNSCellServer<ClientType>::clientDataProcessingLayer(IN typename std::vect
           /* judge whether the length of the data in message buffer is bigger than the sizeof(_PackageHeader) */
           while ((*_clientSocket)->getMsgPtrPos() >= sizeof(_PackageHeader))
           {
+                    _PackageHeader* _header(
+                              reinterpret_cast<_PackageHeader*>((*_clientSocket)->getMsgBufferHead())
+                    );
+
+                    if (!_header->_packageLength) {
+                              break;
+                    }
+
                     /*the size of current message in szMsgBuffer is bigger than the package length(_header->_packageLength)*/
                     if (_header->_packageLength <= (*_clientSocket)->getMsgPtrPos())
                     {             
@@ -412,11 +416,9 @@ bool HCNSCellServer<ClientType>::clientDataProcessingLayer(IN typename std::vect
 
                               //get message header to indentify commands    
                               //this->m_pNetEvent->readMessageHeader( (*_clientSocket), reinterpret_cast<_PackageHeader*>(_header));
-                              this->m_pNetEvent->readMessageBody(this, (*_clientSocket), reinterpret_cast<_PackageHeader*>(_header));
+                              //this->m_pNetEvent->readMessageBody(this, (*_clientSocket), reinterpret_cast<_PackageHeader*>(_header));
                              
-                              /* 
-                              * delete this message package and modify the array
-                              */
+                              /* delete this message package and modify the array */
 
 #if _WIN32     //Windows Enviorment
                               memcpy_s(

@@ -6,9 +6,10 @@
 class CellClient
 {
 public:
-          typedef  std::function<void(std::shared_ptr<_ServerSocket>, char*, int)> CellClientTask;
+          typedef  std::function<void(const std::shared_ptr<_ServerSocket>&, char*, int)> CellClientTask;
 public:
-          CellClient();
+          CellClient() = default;
+          CellClient(long long _timeout);
           virtual ~CellClient();
 
 public:
@@ -21,7 +22,7 @@ public:
 public:
           void connectToServer(IN unsigned long _ipAddr, IN unsigned short _ipPort);
           void addExcuteMethod(IN CellClientTask&& _cellClientTask =
-                    [](std::shared_ptr<_ServerSocket> _serverSocket, char* _szSendBuf, int _szBufferSize)->void {
+                    [](const std::shared_ptr<_ServerSocket>& _serverSocket, char* _szSendBuf, int _szBufferSize)->void {
                               _serverSocket->sendDataToServer(_szSendBuf, _szBufferSize);
                     }
           );
@@ -38,6 +39,9 @@ private:
           void readMessageBody(IN _PackageHeader* _buffer);
 
 private:
+          /*flush send buffer and send data to server as a pulse package*/
+          long long _flushSendBufferTimeout;
+
           /*client interface thread*/
           std::promise<bool> m_interfacePromise;
           std::shared_future<bool> m_interfaceFuture;
