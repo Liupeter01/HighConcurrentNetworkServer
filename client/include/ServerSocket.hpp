@@ -52,7 +52,7 @@ public:
 
 public:
           /*Get Server Socket and Address Info*/
-          SOCKET& getServerSocket();
+          const SOCKET& getServerSocket() const ;
           const in_addr& getServerAddr()const;
           const unsigned short& getServerPort()const;
 
@@ -126,10 +126,11 @@ private:
 * @update: add pulse timeout count down feature
 *------------------------------------------------------------------------------------------------------*/
 template<typename T>
-void _ServerSocket::sendDataToServer(IN T* _szSendBuf, IN int _szBufferSize)
+void 
+_ServerSocket::sendDataToServer(IN T* _szSendBuf, IN int _szBufferSize)
 {
           /*check wheather pulse is timeout*/
-          if (this->isServerPulseTimeout(this->_pulseTimeout)) 
+          if (this->isServerPulseTimeout(this->_pulseTimeout))
           {
                     this->flushSendBufferToServer();
           }
@@ -196,7 +197,8 @@ void _ServerSocket::sendDataToServer(IN T* _szSendBuf, IN int _szBufferSize)
                     2. [IN OUT] int _szBufferSize
 *------------------------------------------------------------------------------------------------------*/
 template<typename T>
-int _ServerSocket::reciveDataFromServer(OUT T* _szRecvBuf, IN int _szBufferSize)
+int
+_ServerSocket::reciveDataFromServer(OUT T* _szRecvBuf, IN int _szBufferSize)
 {
           return ::recv(
                     this->_serverSocket,

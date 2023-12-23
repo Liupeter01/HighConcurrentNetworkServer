@@ -35,7 +35,8 @@ CellClient::~CellClient()
 *                   2.[IN] int type
 *                   3.[IN] int protocol
 *------------------------------------------------------------------------------------------------------*/
-SOCKET CellClient::createClientSocket(IN int af, IN int type, IN int protocol)
+SOCKET 
+CellClient::createClientSocket(IN int af, IN int type, IN int protocol)
 {
           return  ::socket(af, type, protocol);                              //Create server socket
 }
@@ -46,7 +47,8 @@ SOCKET CellClient::createClientSocket(IN int af, IN int type, IN int protocol)
 * @param :  1.[IN] unsigned long _ipAddr
 *                   2.[IN] unsigned short _ipPort
 *------------------------------------------------------------------------------------------------------*/
-void CellClient::connectToServer(IN unsigned long _ipAddr,IN unsigned short _ipPort)
+void 
+CellClient::connectToServer(IN unsigned long _ipAddr,IN unsigned short _ipPort)
 {
           this->_serverSocket->_serverAddr.sin_family = AF_INET;                                    //IPV4
           this->_serverSocket->_serverAddr.sin_port = htons(_ipPort);                                     //Port number
@@ -70,7 +72,8 @@ void CellClient::connectToServer(IN unsigned long _ipAddr,IN unsigned short _ipP
 * @function: void addExcuteMethod(CellClientTask&& _cellClientTask)
 * @param : [IN] CellClientTask&& _cellClientTask
 *------------------------------------------------------------------------------------------------------*/
-void CellClient::addExcuteMethod(IN CellClientTask&& _cellClientTask)
+void 
+CellClient::addExcuteMethod(IN CellClientTask&& _cellClientTask)
 {
           this->_func = _cellClientTask;
 }
@@ -81,7 +84,8 @@ void CellClient::addExcuteMethod(IN CellClientTask&& _cellClientTask)
 * @param :  1.[IN] char* _szSendBuf
 *                   2.[IN] int _szBufferSize
 *------------------------------------------------------------------------------------------------------*/
-void CellClient::startExcuteMethod(IN char* _szSendBuf, IN int _szBufferSize)
+void 
+CellClient::startExcuteMethod(IN char* _szSendBuf, IN int _szBufferSize)
 {
           /*add _func detection and find out wheather _func is being initalized or not*/
           if (this->_func != nullptr) {
@@ -94,7 +98,8 @@ void CellClient::startExcuteMethod(IN char* _szSendBuf, IN int _szBufferSize)
 * @function: void initClientIOMultiplexing
 * @description: in client, we only need to deal with client socket
 *------------------------------------------------------------------------------------------------------*/
-void CellClient::initClientIOMultiplexing()
+void 
+CellClient::initClientIOMultiplexing()
 {
           FD_ZERO(&m_fdread);                                                              //clean fd_read
           FD_SET(this->_serverSocket->getServerSocket(), &m_fdread);                           //Insert Server Socket into fd_read
@@ -103,7 +108,8 @@ void CellClient::initClientIOMultiplexing()
 /*------------------------------------------------------------------------------------------------------
 * @function: int initClientSelectModel
 *------------------------------------------------------------------------------------------------------*/
-int CellClient::initClientSelectModel()
+int 
+CellClient::initClientSelectModel()
 {
           return ::select(
                     static_cast<int>(this->_serverSocket->getServerSocket() + 1),
@@ -119,7 +125,8 @@ int CellClient::initClientSelectModel()
 * @function: void readMessageHeader
 * @param: IN _PackageHeader*
 *------------------------------------------------------------------------------------------------------*/
-void CellClient::readMessageHeader(IN _PackageHeader* _header)
+void 
+CellClient::readMessageHeader(IN _PackageHeader* _header)
 {
           std::cout << "Receive Message From Server<Socket =" << static_cast<int>(this->_serverSocket->getServerSocket()) <<"> : "
                     << "Data Length = " << _header->_packageLength << ", Request = ";
@@ -149,7 +156,8 @@ void CellClient::readMessageHeader(IN _PackageHeader* _header)
 * @function: virtual void readMessageHeader
 * @param : [IN] _PackageHeader* _buffer
 * ------------------------------------------------------------------------------------------------------*/
-void CellClient::readMessageBody(IN _PackageHeader* _buffer)
+void 
+CellClient::readMessageBody(IN _PackageHeader* _buffer)
 {
           if (_buffer->_packageCmd == CMD_LOGIN) {
                     _LoginData* recvLoginData(reinterpret_cast<_LoginData*>(_buffer));
@@ -180,7 +188,8 @@ void CellClient::readMessageBody(IN _PackageHeader* _buffer)
 * @description: use server processing layer to process data which transfer from server
 * @retvalue: bool
 *------------------------------------------------------------------------------------------------------*/
-bool CellClient::serverDataProcessingLayer()
+bool 
+CellClient::serverDataProcessingLayer()
 {
           _PackageHeader* _header(reinterpret_cast<_PackageHeader*>(
                     this->_serverSocket->getMsgBufferHead()
@@ -250,7 +259,8 @@ bool CellClient::serverDataProcessingLayer()
 * processing server msg(Consumer Thread)
 * @function: void serverMsgProcessingThread()
 *------------------------------------------------------------------------------------------------------*/
-void CellClient::serverMsgProcessingThread()
+void 
+CellClient::serverMsgProcessingThread()
 {
           while (true){
                     /*wait for future variable to change (if there is no signal then ignore it and do other task)*/

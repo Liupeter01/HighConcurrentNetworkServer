@@ -16,7 +16,8 @@ HCNSTaskDispatcher::~HCNSTaskDispatcher()
 * @function: void addTemproaryClient(CellTask && _cellTask)
 * @param:[IN] CellTask && _cellTask
 *------------------------------------------------------------------------------------------------------*/
-void HCNSTaskDispatcher::addTemproaryTask(CellTask && _cellTask)
+void 
+HCNSTaskDispatcher::addTemproaryTask(CellTask && _cellTask)
 {
           std::lock_guard<std::mutex> _lckg(this->m_temproaryMutex);
           m_temproaryTaskList.push_back(
@@ -28,7 +29,8 @@ void HCNSTaskDispatcher::addTemproaryTask(CellTask && _cellTask)
 * processing celltask(consumer thread)
 * @function: void taskProcessingThread()
 *------------------------------------------------------------------------------------------------------*/
-void HCNSTaskDispatcher::taskProcessingThread()
+void 
+HCNSTaskDispatcher::taskProcessingThread()
 {
           while (true)
           {
@@ -70,7 +72,8 @@ void HCNSTaskDispatcher::taskProcessingThread()
 * start processing celltask(consumer thread)
 * @function: void startCellTaskDispatch()
 *------------------------------------------------------------------------------------------------------*/
-void HCNSTaskDispatcher::startCellTaskDispatch()
+void 
+HCNSTaskDispatcher::startCellTaskDispatch()
 {
           m_taskThread = std::thread(std::mem_fn(&HCNSTaskDispatcher::taskProcessingThread), this);
 }
@@ -79,7 +82,8 @@ void HCNSTaskDispatcher::startCellTaskDispatch()
 * shutdown task dispatcher system(use promise and future to end while-loop)
 * @function: void shutdownTaskDispatcher()
 *------------------------------------------------------------------------------------------------------*/
-void HCNSTaskDispatcher::shutdownTaskDispatcher()
+void 
+HCNSTaskDispatcher::shutdownTaskDispatcher()
 {
           //set symphore value to end this thread
           this->m_interfacePromise.set_value(false);
@@ -89,7 +93,8 @@ void HCNSTaskDispatcher::shutdownTaskDispatcher()
 * remove container and erase all the structures
 * @function: void purgeRemoveTaskList()
 *------------------------------------------------------------------------------------------------------*/
-void HCNSTaskDispatcher::purgeRemoveTaskList()
+void 
+HCNSTaskDispatcher::purgeRemoveTaskList()
 {
 			this->m_mainTaskList.clear();
 			this->m_temproaryTaskList.clear();

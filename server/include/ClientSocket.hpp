@@ -55,9 +55,9 @@ public:
           const unsigned short& getClientPort()const;
 
           /*Operate Current Client's Send and Recv Buffer*/
-          unsigned int getMsgPtrPos() const;
-          unsigned int getBufFullSpace() const;
-          unsigned int getBufRemainSpace() const;
+          const unsigned int getMsgPtrPos() const;
+          const unsigned int getBufFullSpace() const;
+          const unsigned int getBufRemainSpace() const;
 
           char* getMsgBufferHead();
           char* getMsgBufferTail();
@@ -66,9 +66,9 @@ public:
           void decreaseMsgBufferPos(unsigned int _decreaseSize);
           void resetMsgBufferPos();
 
-          unsigned int getSendPtrPos() const;
-          unsigned int getSendBufFullSpace() const;
-          unsigned int getSendBufRemainSpace() const;
+          const unsigned int getSendPtrPos() const;
+          const unsigned int getSendBufFullSpace() const;
+          const unsigned int getSendBufRemainSpace() const;
 
           char* getSendBufferHead();
           char* getSendBufferTail();
@@ -135,7 +135,8 @@ private:
                     2.[IN] int _szBufferSize
 *------------------------------------------------------------------------------------------------------*/
 template<typename T>
-void _ClientSocket::sendDataToClient(IN T* _szSendBuf, IN int _szBufferSize)
+void 
+_ClientSocket::sendDataToClient(IN T* _szSendBuf, IN int _szBufferSize)
 {
           /*Backup argument*/
           T* _szSendBackup(_szSendBuf);
@@ -175,7 +176,10 @@ void _ClientSocket::sendDataToClient(IN T* _szSendBuf, IN int _szBufferSize)
                               * move the offset of sendbuffer pointer
                               * recalculate the rest size of the sendbuffer
                               */
-                              _szSendBackup = reinterpret_cast<T*>(reinterpret_cast<char*>(_szSendBackup) + this->getSendBufRemainSpace());
+                              _szSendBackup = reinterpret_cast<T*>(
+                                        reinterpret_cast<char*>(_szSendBackup) + this->getSendBufRemainSpace()
+                                        );
+
                               _szSendBufSize = _szSendBufSize - this->getSendBufRemainSpace();
 
                               this->increaseSendBufferPos(this->getSendBufRemainSpace());
@@ -202,17 +206,17 @@ void _ClientSocket::sendDataToClient(IN T* _szSendBuf, IN int _szBufferSize)
                               memcpy_s(
                                         reinterpret_cast<void*>(this->getSendBufferTail()),
                                         this->getSendBufRemainSpace(),
-                                        reinterpret_cast<void*>(_szSendBuf),
-                                        _szBufferSize
+                                        reinterpret_cast<void*>(_szSendBackup),
+                                        _szSendBufSize
                               );
 #else        
                               memcpy(
                                         reinterpret_cast<void*>(this->getSendBufferTail()),
-                                        reinterpret_cast<void*>(_szSendBuf),
-                                        _szBufferSize
+                                        reinterpret_cast<void*>(_szSendBackup),
+                                        _szSendBufSize
                               );
 #endif
-                              this->increaseSendBufferPos(_szBufferSize);
+                              this->increaseSendBufferPos(_szSendBufSize);
                               break;
                     }
           }
@@ -226,7 +230,8 @@ void _ClientSocket::sendDataToClient(IN T* _szSendBuf, IN int _szBufferSize)
 * @retvalue: int
 *------------------------------------------------------------------------------------------------------*/
 template<typename T>
-int _ClientSocket::reciveDataFromClient(
+int 
+_ClientSocket::reciveDataFromClient(
           OUT T* _szRecvBuf,
           IN int _szBufferSize)
 {

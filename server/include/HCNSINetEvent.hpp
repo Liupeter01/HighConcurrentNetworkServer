@@ -21,7 +21,10 @@ public:
 			* @param : [IN] std::shared_ptr<ClientType> _pclient
 			* @multithread safety issue: will only be triggered by only one thread
 			*------------------------------------------------------------------------------------------------------*/
-		  virtual inline void clientOnJoin(IN std::shared_ptr<ClientType> _pclient) = 0;
+		  virtual 
+		  inline 
+		  void 
+		  clientOnJoin(IN std::shared_ptr<ClientType> _pclient) = 0;
 
 		  /*------------------------------------------------------------------------------------------------------
 		  * virtual function: client terminate connection
@@ -29,7 +32,9 @@ public:
 		  * @param : [IN] IN typename std::vector< std::shared_ptr<ClientType>>::iterator _pclient
 		  * @multithread safety issue: will be triggered by multipule threads, variables should be locked or atomic variables
 		  *------------------------------------------------------------------------------------------------------*/
-		  virtual void clientOnLeave(IN typename std::vector< std::shared_ptr<ClientType>>::iterator _pclient) = 0;
+		  virtual 
+		  void 
+		  clientOnLeave(IN typename std::vector< std::shared_ptr<ClientType>>::iterator _pclient) = 0;
 
 		  /*------------------------------------------------------------------------------------------------------
 		   * virtual function: add up to the number of recv function calls
@@ -37,28 +42,40 @@ public:
 		   * @param : [IN] IN typename std::vector< std::shared_ptr<ClientType>>::iterator _pclient
 		   * @multithread safety issue: will be triggered by multipule threads, variables should be locked or atomic variables
 		   *------------------------------------------------------------------------------------------------------*/
-		  virtual inline void addUpRecvCounter(IN typename std::vector< std::shared_ptr<ClientType>>::iterator _pclient) = 0;
+		  virtual 
+		  inline 
+		  void 
+		  addUpRecvCounter(IN typename std::vector< std::shared_ptr<ClientType>>::iterator _pclient) = 0;
 
 		  /*------------------------------------------------------------------------------------------------------
 			* virtual function: add up to the number of clients
 			* @function:  void addUpClientsCounter()
 			* @multithread safety issue: will be triggered by multipule threads, variables should be locked or atomic variables
 			*------------------------------------------------------------------------------------------------------*/
-		  virtual inline void addUpClientsCounter() = 0;
+		  virtual 
+		  inline 
+		  void 
+		  addUpClientsCounter() = 0;
 
 		  /*------------------------------------------------------------------------------------------------------
 			* virtual function: decrease to the number of clients
 			* @function:  decreaseClientsCounter()
 			* @multithread safety issue: will be triggered by multipule threads, variables should be locked or atomic variables
 			*------------------------------------------------------------------------------------------------------*/
-		  virtual inline void decreaseClientsCounter() = 0;
+		  virtual 
+		  inline 
+		  void 
+		  decreaseClientsCounter() = 0;
 
 		  /*------------------------------------------------------------------------------------------------------
 			* virtual function: add up to the number of packages being received
 			* @function:  void addUppackageCounter()
 			* @multithread safety issue: will be triggered by multipule threads, variables should be locked or atomic variables
 			*------------------------------------------------------------------------------------------------------*/
-		  virtual inline void addUpPackageCounter() = 0;
+		  virtual
+		  inline 
+		  void 
+		  addUpPackageCounter() = 0;
 
 		  /*------------------------------------------------------------------------------------------------------
 		  * @function:  void readMessageHeader
@@ -67,7 +84,10 @@ public:
 
 		  * @description: process clients' message header
 		  *------------------------------------------------------------------------------------------------------*/
-		  virtual inline void readMessageHeader(
+		  virtual 
+		  inline 
+		  void 
+		  readMessageHeader(
 					IN  std::shared_ptr <ClientType> _clientSocket,
 					IN _PackageHeader* _header
 		  ) = 0;
@@ -80,7 +100,10 @@ public:
 
 			* @description:  process clients' message body
 			*------------------------------------------------------------------------------------------------------*/
-		  virtual inline void readMessageBody(
+		  virtual
+		  inline 
+		  void 
+		  readMessageBody(
 					IN HCNSCellServer<ClientType>* _cellServer,
 					IN std::shared_ptr <ClientType> _clientSocket,
 					IN _PackageHeader* _header
