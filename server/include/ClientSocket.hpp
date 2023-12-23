@@ -2,6 +2,7 @@
 #ifndef _CLIENTSOCKET_H_
 #define _CLIENTSOCKET_H_
 #include<iostream>
+#include<vector>
 #include<HCNSObjectPool.hpp>
 
 #if _WIN32             //Windows Enviorment  
@@ -36,6 +37,7 @@ typedef sockaddr_in SOCKADDR_IN;
 /*
 * inherited from HCNSObjectPool and we init 10000 _ClientSocket objects in the pool
 * In order to create a objectpool, a memorypool will be created first!
+* update: Add HCNSTcpServer as a friend class
 */
 class _ClientSocket : public HCNSObjectPool<_ClientSocket,10000> {
 public:
@@ -48,7 +50,7 @@ public:
 
 public:
           /*Get Client Socket and Address Info*/
-          SOCKET& getClientSocket();
+          const SOCKET& getClientSocket()  const;
           const in_addr& getClientAddr()const;
           const unsigned short& getClientPort()const;
 
@@ -80,15 +82,24 @@ public:
           bool isClientConnectionTimeout(IN long long _timeInterval);
 
           /*Client's Send And Receive Method*/
-          template<typename T> void sendDataToClient(
+          template<typename T> 
+          void sendDataToClient(
                     IN T* _szSendBuf,
                     IN int _szBufferSize
           );
 
-          template<typename T> int reciveDataFromClient(
+          template<typename T> 
+		  int reciveDataFromClient(
                     OUT T* _szRecvBuf,
                     IN int _szBufferSize
           );
+
+private:
+		  template<typename ClientType>
+          friend class HCNSTcpServer;
+		  
+		  /*Release Client Socket*/
+          void purgeClientSocket();
 
 private:
           /*Client Socket and Address Info*/
@@ -126,45 +137,54 @@ private:
 template<typename T>
 void _ClientSocket::sendDataToClient(IN T* _szSendBuf, IN int _szBufferSize)
 {
-          int retvalue(SOCKET_ERROR);
+          /*Backup argument*/
+          T* _szSendBackup(_szSendBuf);
+          int _szSendBufSize(_szBufferSize);
 
-          /*
-          * scenario:
-          *     1.this->getSendBufFullSpace() - this->getSendPtrPos() <= _szBufferSize
-          *           there is no space in buffer _szSendBuf, so we should send them first and clean the buffer
-          *           second, we have to store the rest of the buffer
-          *
-          *     2.this->getSendBufFullSpace() - this->getSendPtrPos() > _szBufferSize
-          */
-          while (true)
-          {
+          /*find out wheather _szBufferSize is bigger than 4096, and how many loops it will take.*/
+          int _loop((_szBufferSize / this->getSendBufFullSpace()) + 1);
+
+          for (int i = 0; i < _loop; ++i) {
+
+                    int _blockSize = ((_szBufferSize - (i * this->getSendBufFullSpace())) / this->getSendBufFullSpace()) != 0 ?
+                              this->getSendBufFullSpace()
+                              : _szBufferSize % this->getSendBufFullSpace();
+
                     /* there is no space in buffer _szSendBuf, we have to send it to the client*/
-                    if (this->getSendPtrPos() + _szBufferSize >= this->getSendBufFullSpace()) {
+                    if (this->getSendPtrPos() + _blockSize >= this->getSendBufFullSpace()) {
 
-                              /* calculate valid memcpy data length */
-                              int _validCopyLength = this->getSendBufFullSpace() - this->getSendPtrPos();
-
-                              /*append _szSendBuf to the tail of the send buffer and it has to follow the constraint of _validCopyLength*/
+                              /*
+                              * append _szSendBuf to the tail of the send buffer and it has to follow the constraint of getSendBufRemainSpace
+                              */
 #if _WIN32    
                               memcpy_s(
                                         reinterpret_cast<void*>(this->getSendBufferTail()),
-                                        _validCopyLength,
-                                        reinterpret_cast<void*>(_szSendBuf),
-                                        _validCopyLength
+                                        this->getSendBufRemainSpace(),
+                                        reinterpret_cast<void*>(_szSendBackup),
+                                        this->getSendBufRemainSpace()
                               );
 #else        
                               memcpy(
                                         reinterpret_cast<void*>(this->getSendBufferTail()),
-                                        reinterpret_cast<void*>(_szSendBuf),
-                                        _validCopyLength
+                                        reinterpret_cast<void*>(_szSendBackup),
+                                        this->getSendBufRemainSpace()
                               );
 #endif
 
-                              /*send all the data to client*/
-                              retvalue = ::send(
+                              /*
+                              * move the offset of sendbuffer pointer
+                              * recalculate the rest size of the sendbuffer
+                              */
+                              _szSendBackup = reinterpret_cast<T*>(reinterpret_cast<char*>(_szSendBackup) + this->getSendBufRemainSpace());
+                              _szSendBufSize = _szSendBufSize - this->getSendBufRemainSpace();
+
+                              this->increaseSendBufferPos(this->getSendBufRemainSpace());
+
+                              /*we should send exsiting data now, and then we could deal with _szSendBuffer*/
+                              int retvalue = send(
                                         this->m_clientSocket,
                                         reinterpret_cast<const char*>(this->getSendBufferHead()),
-                                        this->getSendBufFullSpace(), 
+                                        this->getSendPtrPos(),
                                         0
                               );
 
@@ -172,19 +192,12 @@ void _ClientSocket::sendDataToClient(IN T* _szSendBuf, IN int _szBufferSize)
                                         return;
                               }
 
-                              /*
-                              * move the offset of sendbuffer pointer
-                              * recalculate the rest size of the sendbuffer
-                              */
-                              _szSendBuf = reinterpret_cast<T*>(reinterpret_cast<char*>(_szSendBuf) + _validCopyLength);
-                              _szBufferSize = _szBufferSize - _validCopyLength;
 
                               /*reset send buffer counter*/
                               this->resetSendBufferPos();
+
                     }
-                    else
-                    {
-                              /* we have enough room in the buffer, so append _szSendBuf to the tail of the send buffer */
+                    else {
 #if _WIN32    
                               memcpy_s(
                                         reinterpret_cast<void*>(this->getSendBufferTail()),

@@ -26,16 +26,10 @@ _ClientSocket::_ClientSocket(
 _ClientSocket::~_ClientSocket()
 {
           //[POTIENTAL BUG HERE!]: why _clientaddr's dtor was deployed
-         // ::closesocket(this->m_clientSocket);
-          this->m_clientSocket = INVALID_SOCKET;
-          memset(
-                    reinterpret_cast<void*>(&this->m_clientAddr),
-                    0,
-                    sizeof(sockaddr_in)
-          );
+          this->purgeClientSocket();
 }
 
-SOCKET& _ClientSocket::getClientSocket()
+const SOCKET& _ClientSocket::getClientSocket()  const
 {
           return this->m_clientSocket;
 }
@@ -134,6 +128,34 @@ void _ClientSocket::resetSendBufferPos()
 {
           this->m_szSendPtrPos = 0;
           this->m_szSendRemainSpace = this->m_szSendBufSize;
+}
+
+/*------------------------------------------------------------------------------------------------------
+* this function should ONLY called by HCNSTcpServer!
+* @function: void purgeClientSocket()
+* @description: 1.close ClientSocket and clean client's IP addr
+				2.clean clientSocket value to INVALID_SOCKET
+*------------------------------------------------------------------------------------------------------*/
+void  _ClientSocket::purgeClientSocket()
+{
+          /*Add valid socket condition*/
+          if (INVALID_SOCKET != this->m_clientSocket) {
+#if _WIN32                                                   //Windows Enviorment
+                    ::shutdown(this->m_clientSocket, SD_BOTH); //disconnect I/O
+                    ::closesocket(this->m_clientSocket);     //release socket completely!! 
+
+#else                                                                  //Unix/Linux/Macos Enviorment
+                    ::shutdown(this->m_clientSocket, SHUT_RDWR);//disconnect I/O and keep recv buffer
+                    close(this->m_clientSocket);                //release socket completely!! 
+
+#endif
+
+                    /*set memory value*/
+                    memset(reinterpret_cast<void*>(&this->m_clientAddr), 0, sizeof(sockaddr_in));
+
+                    /*set socket to INVALID_SOCKET*/
+                    this->m_clientSocket = INVALID_SOCKET;
+          }
 }
 
 /*------------------------------------------------------------------------------------------------------

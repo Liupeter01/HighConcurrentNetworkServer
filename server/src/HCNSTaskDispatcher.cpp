@@ -1,5 +1,15 @@
 #include<HCNSTaskDispatcher.h>
 
+HCNSTaskDispatcher::HCNSTaskDispatcher()
+          :m_interfaceFuture(this->m_interfacePromise.get_future())
+{
+}
+
+HCNSTaskDispatcher::~HCNSTaskDispatcher()
+{
+          m_taskThread.join();
+}
+
 /*------------------------------------------------------------------------------------------------------
 * producer thread add HCNSCellTask* _cellTask into the m_temproaryTaskList
 * @description: perfect forwarding a righr value reference to enhance performance!
@@ -22,6 +32,11 @@ void HCNSTaskDispatcher::taskProcessingThread()
 {
           while (true)
           {
+                    if (this->m_interfaceFuture.wait_for(std::chrono::microseconds(1)) == std::future_status::ready) {
+                              if (!this->m_interfaceFuture.get()) {
+                                        break;
+                              }
+                    }
                     /*size of temporary buffer is valid*/
                     if (this->m_temproaryTaskList.size())
                     {
@@ -58,6 +73,16 @@ void HCNSTaskDispatcher::taskProcessingThread()
 void HCNSTaskDispatcher::startCellTaskDispatch()
 {
           m_taskThread = std::thread(std::mem_fn(&HCNSTaskDispatcher::taskProcessingThread), this);
+}
+
+/*------------------------------------------------------------------------------------------------------
+* shutdown task dispatcher system(use promise and future to end while-loop)
+* @function: void shutdownTaskDispatcher()
+*------------------------------------------------------------------------------------------------------*/
+void HCNSTaskDispatcher::shutdownTaskDispatcher()
+{
+          //set symphore value to end this thread
+          this->m_interfacePromise.set_value(false);
 }
 
 /*------------------------------------------------------------------------------------------------------
